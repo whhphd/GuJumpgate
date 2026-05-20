@@ -465,6 +465,100 @@ test('hosted checkout automation completes plus-checkout-create after success pa
   });
 });
 
+test('hosted checkout verification popup delay waits before fetching verification code', async () => {
+  const events = [];
+  let tabUrl = 'https://pay.openai.com/c/pay/hosted_cs_live_final';
+  const executor = api.createPlusCheckoutCreateExecutor({
+    addLog: async (message, level = 'info') => {
+      events.push({ type: 'log', message, level });
+    },
+    chrome: {
+      tabs: {
+        create: async () => ({ id: 80 }),
+        update: async () => {},
+        get: async () => ({ id: 80, url: tabUrl }),
+      },
+    },
+    completeNodeFromBackground: async (step, payload) => {
+      events.push({ type: 'complete', step, payload });
+    },
+    enableHostedCheckoutAutomation: true,
+    ensureContentScriptReadyOnTabUntilStopped: async () => {},
+    fetch: async (url) => {
+      if (String(url).includes('/api/text-relay/')) {
+        events.push({ type: 'fetch-code', url });
+        return {
+          ok: true,
+          text: async () => JSON.stringify({ code: '123456' }),
+        };
+      }
+      events.push({ type: 'fetch-address', url });
+      return {
+        ok: true,
+        json: async () => ({
+          address: {
+            Address: '123 Main St',
+            City: 'New York',
+            State_Full: 'New York',
+            Zip_Code: '10001',
+          },
+        }),
+      };
+    },
+    getState: async () => ({
+      hostedCheckoutVerificationPopupDelaySeconds: 3,
+      hostedCheckoutVerificationUrl: 'https://mail.test.com/api/text-relay/eca_tr_delay',
+    }),
+    registerTab: async () => {},
+    sendTabMessageUntilStopped: async (_tabId, _source, message) => {
+      events.push({ type: 'tab-message', message });
+      if (message.type === 'CREATE_PLUS_CHECKOUT') {
+        return {
+          checkoutUrl: 'https://chatgpt.com/checkout/openai_ie/cs_live_final',
+          hostedCheckoutUrl: 'https://pay.openai.com/c/pay/hosted_cs_live_final',
+          preferredCheckoutUrl: 'https://pay.openai.com/c/pay/hosted_cs_live_final',
+          country: 'US',
+          currency: 'USD',
+        };
+      }
+      if (message.type === 'PLUS_CHECKOUT_GET_STATE') {
+        return { hostedVerificationVisible: true };
+      }
+      if (message.type === 'RUN_HOSTED_OPENAI_CHECKOUT_STEP' && message.payload?.verificationCode) {
+        tabUrl = 'https://chatgpt.com/payments/success';
+      }
+      return {};
+    },
+    setState: async () => {},
+    sleepWithStop: async (ms) => {
+      events.push({ type: 'sleep', ms });
+    },
+    waitForTabCompleteUntilStopped: async () => {},
+    waitForTabUrlMatchUntilStopped: async (_tabId, matcher) => {
+      const candidate = { id: 80, url: tabUrl };
+      if (matcher(candidate.url, candidate)) {
+        return candidate;
+      }
+      return { id: 80, url: 'https://pay.openai.com/c/pay/hosted_cs_live_final' };
+    },
+  });
+
+  await executor.executePlusCheckoutCreate({
+    plusModeEnabled: true,
+    plusPaymentMethod: 'paypal',
+  });
+  for (let index = 0; index < 10 && !events.some((event) => event.type === 'complete'); index += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+
+  const popupDelayIndex = events.findIndex((event) => event.type === 'sleep' && event.ms === 3000);
+  const fetchCodeIndex = events.findIndex((event) => event.type === 'fetch-code');
+  assert.notEqual(popupDelayIndex, -1);
+  assert.notEqual(fetchCodeIndex, -1);
+  assert.ok(popupDelayIndex < fetchCodeIndex);
+  assert.equal(events.some((event) => event.type === 'log' && /按设置等待 3 秒/.test(event.message)), true);
+});
+
 test('Plus checkout content routes billing operations through the operation delay gate', async () => {
   const { checkoutEvents, send } = createCheckoutContentHarness();
 
