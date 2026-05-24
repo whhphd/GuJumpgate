@@ -1283,6 +1283,12 @@ function updateIpProxyUI(state = latestState) {
   if (rowIpProxyFold) {
     rowIpProxyFold.style.display = showSettings ? '' : 'none';
   }
+  if (typeof rowIpProxyScope !== 'undefined' && rowIpProxyScope) {
+    rowIpProxyScope.style.display = showSettings ? '' : 'none';
+  }
+  if (typeof rowIpProxyScopeHint !== 'undefined' && rowIpProxyScopeHint) {
+    rowIpProxyScopeHint.style.display = showSettings ? '' : 'none';
+  }
   if (rowIpProxyService) {
     rowIpProxyService.style.display = showSettings ? '' : 'none';
   }

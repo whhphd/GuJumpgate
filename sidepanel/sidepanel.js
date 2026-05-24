@@ -152,6 +152,9 @@ const rowIpProxyPort = document.getElementById('row-ip-proxy-port');
 const inputIpProxyPort = document.getElementById('input-ip-proxy-port');
 const rowIpProxyProtocol = document.getElementById('row-ip-proxy-protocol');
 const selectIpProxyProtocol = document.getElementById('select-ip-proxy-protocol');
+const rowIpProxyScope = document.getElementById('row-ip-proxy-scope');
+const rowIpProxyScopeHint = document.getElementById('row-ip-proxy-scope-hint');
+const selectIpProxyScope = document.getElementById('select-ip-proxy-scope');
 const rowIpProxyUsername = document.getElementById('row-ip-proxy-username');
 const inputIpProxyUsername = document.getElementById('input-ip-proxy-username');
 const btnToggleIpProxyUsername = document.getElementById('btn-toggle-ip-proxy-username');
@@ -1125,6 +1128,12 @@ const DEFAULT_IP_PROXY_MODE = 'account';
 const SUPPORTED_IP_PROXY_MODES = ['api', 'account'];
 const DEFAULT_IP_PROXY_PROTOCOL = 'http';
 const SUPPORTED_IP_PROXY_PROTOCOLS = ['http', 'https', 'socks4', 'socks5'];
+const DEFAULT_IP_PROXY_SCOPE = 'incognito_persistent';
+const SUPPORTED_IP_PROXY_SCOPES = ['incognito_persistent', 'regular'];
+function normalizeIpProxyScopeForUI(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return SUPPORTED_IP_PROXY_SCOPES.includes(normalized) ? normalized : DEFAULT_IP_PROXY_SCOPE;
+}
 const IP_PROXY_API_MODE_ENABLED = false;
 const IP_PROXY_ACCOUNT_LIST_ENABLED = false;
 
@@ -4286,6 +4295,11 @@ function collectSettingsPayload() {
     ),
     sub2apiDefaultProxyName: inputSub2ApiDefaultProxy.value.trim(),
     ipProxyEnabled: getSelectedIpProxyEnabledSafe(),
+    ipProxyScope: normalizeIpProxyScopeForUI(
+      typeof selectIpProxyScope !== 'undefined' && selectIpProxyScope
+        ? selectIpProxyScope.value
+        : latestState?.ipProxyScope
+    ),
     ipProxyService: selectedIpProxyService,
     ipProxyMode: currentIpProxyServiceProfile.mode,
     ipProxyApiUrl: currentIpProxyServiceProfile.apiUrl,
@@ -10049,6 +10063,9 @@ function applySettingsState(state) {
   if (typeof setIpProxyEnabled === 'function') {
     setIpProxyEnabled(Boolean(state?.ipProxyEnabled));
   }
+  if (typeof selectIpProxyScope !== 'undefined' && selectIpProxyScope) {
+    selectIpProxyScope.value = normalizeIpProxyScopeForUI(state?.ipProxyScope);
+  }
   syncLatestState({
     ipProxyService: normalizedIpProxyService,
     ipProxyServiceProfiles: normalizedIpProxyServiceProfiles,
@@ -14610,6 +14627,14 @@ ipProxyModeButtons.forEach((button) => {
 selectIpProxyProtocol?.addEventListener('change', () => {
   syncCurrentIpProxyServiceProfileToLatestState();
   updateIpProxyUI(latestState);
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => {});
+});
+
+selectIpProxyScope?.addEventListener('change', () => {
+  if (selectIpProxyScope) {
+    selectIpProxyScope.value = normalizeIpProxyScopeForUI(selectIpProxyScope.value);
+  }
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => {});
 });

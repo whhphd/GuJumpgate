@@ -89,31 +89,40 @@
 1. 服务商主路径按 `711` 优先。
 2. `API 模式`在 UI 中保留但禁用（暂未开放）。
 3. `账号列表模式`目前关闭（防止多条目与鉴权缓存复用带来的不稳定）。
+4. 默认作用域为 `incognito_persistent`：仅在无痕窗口生效，不影响普通浏览器窗口；可在 UI 切换为 `regular`（所有窗口生效）。
+5. 仅无痕作用域要求扩展在 `chrome://extensions/` 中勾选「在无痕模式下启用」，否则配置不会生效。
+6. 扩展自身 service worker 发出的后台 fetch（如 SUB2API 接口轮询、邮箱接口轮询等）不受作用域开关控制，会跟随系统/浏览器普通代理。
+7. SOCKS5 协议带账号密码鉴权依赖具体 Chrome 版本；如果鉴权失败请改用 HTTP/HTTPS 协议。
 
 对应开关位于：
 
 - `sidepanel/sidepanel.js`：`IP_PROXY_API_MODE_ENABLED = false`
 - `sidepanel/sidepanel.js`：`IP_PROXY_ACCOUNT_LIST_ENABLED = false`
 - `background.js`：`IP_PROXY_ACCOUNT_LIST_ENABLED = false`
+- `background.js`：`DEFAULT_IP_PROXY_SCOPE = 'incognito_persistent'`
 
 ## 5. 使用方式（操作步骤）
 
 1. 打开侧边栏 `IP代理` 开关。
-2. 选择账号模式，填写：
+2. 选择 `作用范围`：
+   - `仅无痕窗口`（推荐，默认）：只接管无痕窗口流量，普通窗口不受影响；需要在 `chrome://extensions/` 中勾选「在无痕模式下启用」。
+   - `所有窗口`：同时接管普通窗口与无痕窗口。
+3. 选择账号模式，填写：
    - Host
    - Port
+   - 协议（HTTP / HTTPS / SOCKS5 / SOCKS4）
    - Username
    - Password
    - Region（可选）
-3. 点击 `同步`。
-4. 查看状态卡：
+4. 点击 `同步`。
+5. 查看状态卡：
    - 当前代理
    - 当前出口
    - 是否有校验提示
-5. 需要换出口时：
+6. 需要换出口时：
    - 711 + session 场景优先用 `Change`
    - 或使用 `下一条`
-6. 需要手动复核时点击 `检测出口` 或 `检查IP`。
+7. 需要手动复核时点击 `检测出口` 或 `检查IP`。
 
 ## 6. 已知限制
 

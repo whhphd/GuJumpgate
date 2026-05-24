@@ -501,7 +501,16 @@ const IP_PROXY_MODE_VALUES = ['api', 'account'];
 const DEFAULT_IP_PROXY_PROTOCOL = 'http';
 const IP_PROXY_PROTOCOL_VALUES = ['http', 'https', 'socks4', 'socks5'];
 const IP_PROXY_FETCH_TIMEOUT_MS = 20000;
-const IP_PROXY_SETTINGS_SCOPE = 'regular';
+const IP_PROXY_SCOPE_VALUES = ['incognito_persistent', 'regular'];
+const DEFAULT_IP_PROXY_SCOPE = 'incognito_persistent';
+function normalizeIpProxyScopeValue(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return IP_PROXY_SCOPE_VALUES.includes(normalized) ? normalized : DEFAULT_IP_PROXY_SCOPE;
+}
+function resolveIpProxySettingsScope(state = {}) {
+  return normalizeIpProxyScopeValue(state?.ipProxyScope);
+}
+const IP_PROXY_SETTINGS_SCOPE = DEFAULT_IP_PROXY_SCOPE;
 const IP_PROXY_BYPASS_LIST = ['<local>', 'localhost', '127.0.0.1'];
 const IP_PROXY_ROUTE_ALL_TRAFFIC = true;
 const IP_PROXY_FORCE_DIRECT_HOST_PATTERNS = [
@@ -509,13 +518,12 @@ const IP_PROXY_FORCE_DIRECT_HOST_PATTERNS = [
   '*.pm-redirects.stripe.com',
   'hwork.pro',
   '*.hwork.pro',
-  'auth.openai.com',
-  'auth0.openai.com',
-  'accounts.openai.com',
   'luckyous.com',
   '*.luckyous.com',
 ];
-const IP_PROXY_FORCE_DIRECT_FALLBACK = 'PROXY 127.0.0.1:7897';
+// 代理应用失败时不能回退直连：用本机不可达端口让请求 fail-close，
+// 比直连泄漏 IP 安全，比 PROXY 127.0.0.1:某个常用端口更不易误伤本地开发服务。
+const IP_PROXY_FORCE_DIRECT_FALLBACK = 'PROXY 127.0.0.1:65535';
 const IP_PROXY_ACCOUNT_LIST_ENABLED = false;
 const IP_PROXY_INIT_ENABLE_EXIT_PROBE = false;
 const IP_PROXY_INIT_SUPPRESS_AUTH_REBIND = true;
@@ -966,6 +974,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   sub2apiAccountPriority: DEFAULT_SUB2API_ACCOUNT_PRIORITY,
   sub2apiDefaultProxyName: DEFAULT_SUB2API_PROXY_NAME,
   ipProxyEnabled: false,
+  ipProxyScope: 'incognito_persistent',
   ipProxyService: DEFAULT_IP_PROXY_SERVICE,
   ipProxyMode: DEFAULT_IP_PROXY_MODE,
   ipProxyApiUrl: '',
@@ -2916,6 +2925,8 @@ function normalizePersistentSettingValue(key, value) {
       return String(value || '').trim();
     case 'ipProxyEnabled':
       return Boolean(value);
+    case 'ipProxyScope':
+      return normalizeIpProxyScopeValue(value);
     case 'ipProxyService':
       return normalizeIpProxyProviderValue(value);
     case 'ipProxyMode':

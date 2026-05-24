@@ -3142,6 +3142,21 @@ async function clearIpProxySettings(options = {}) {
       password: '',
     };
   }
+  const targetScope = typeof options?.scope === 'string' ? options.scope : '';
+  if (targetScope) {
+    await callChromeProxySettings('clear', { scope: targetScope });
+    return;
+  }
+  if (typeof IP_PROXY_SCOPE_VALUES !== 'undefined' && Array.isArray(IP_PROXY_SCOPE_VALUES)) {
+    for (const scope of IP_PROXY_SCOPE_VALUES) {
+      try {
+        await callChromeProxySettings('clear', { scope });
+      } catch {
+        // ignore clear failures for inactive scopes
+      }
+    }
+    return;
+  }
   await callChromeProxySettings('clear', { scope: IP_PROXY_SETTINGS_SCOPE });
 }
 
@@ -3171,11 +3186,14 @@ async function clearIpProxyNetworkState() {
   }
 }
 
-async function forceProxyConnectionDrainBeforeAuthSwitch() {
+async function forceProxyConnectionDrainBeforeAuthSwitch(options = {}) {
+  const targetScope = typeof options?.scope === 'string' && options.scope
+    ? options.scope
+    : IP_PROXY_SETTINGS_SCOPE;
   try {
     await callChromeProxySettings('set', {
       value: { mode: 'direct' },
-      scope: IP_PROXY_SETTINGS_SCOPE,
+      scope: targetScope,
     });
   } catch {
     // ignore direct mode switch failures
@@ -3195,6 +3213,9 @@ async function updateIpProxyRuntimeStatus(status = {}) {
 async function applyIpProxySettingsFromState(state = {}, options = {}) {
   const resolvedState = state || await getState();
   const enabled = Boolean(resolvedState?.ipProxyEnabled);
+  const targetScope = typeof resolveIpProxySettingsScope === 'function'
+    ? resolveIpProxySettingsScope(resolvedState)
+    : IP_PROXY_SETTINGS_SCOPE;
   if (!enabled) {
     try {
       await clearIpProxySettings({ resetLastAppliedAuthSnapshot: true });
@@ -3371,7 +3392,7 @@ async function applyIpProxySettingsFromState(state = {}, options = {}) {
         }
       }
       await setIpProxyLeakGuardEnabled(true);
-      await forceProxyConnectionDrainBeforeAuthSwitch();
+      await forceProxyConnectionDrainBeforeAuthSwitch({ scope: targetScope });
     }
     currentIpProxyAuthEntry = effectiveEntry?.username
       ? {
@@ -3411,9 +3432,23 @@ async function applyIpProxySettingsFromState(state = {}, options = {}) {
           mandatory: true,
         },
       },
-      scope: IP_PROXY_SETTINGS_SCOPE,
+      scope: targetScope,
     });
-    const proxySettings = await getChromeProxySettings({ incognito: false }).catch(() => null);
+    // 切换 scope（如从 regular 切到 incognito_persistent）后，旧 scope 仍残留 PAC，会让另一类窗口继续被代理。
+    if (typeof IP_PROXY_SCOPE_VALUES !== 'undefined' && Array.isArray(IP_PROXY_SCOPE_VALUES)) {
+      for (const scope of IP_PROXY_SCOPE_VALUES) {
+        if (scope === targetScope) continue;
+        try {
+          await callChromeProxySettings('clear', { scope });
+        } catch {
+          // ignore clear failures for inactive scopes
+        }
+      }
+    }
+    // 校验时必须按 set 的目标作用域去读：set 到 incognito_persistent 时普通窗口 settings 不会变，
+    // 否则会得到 levelOfControl=controllable_by_this_extension 的假阴性。
+    const proxyGetIncognito = targetScope === 'regular' ? false : true;
+    const proxySettings = await getChromeProxySettings({ incognito: proxyGetIncognito }).catch(() => null);
     const takeoverCheck = validateProxyControlAfterApply(proxySettings || {}, effectiveEntry);
     if (!takeoverCheck.ok) {
       throw new Error(takeoverCheck.message || '代理接管校验失败。');
@@ -4110,7 +4145,12 @@ async function restoreIpProxySettingsOnWorkerStart(options = {}) {
   const enabled = Boolean(state?.ipProxyEnabled);
   const autoApply = Boolean(options?.autoApply);
   const provider = normalizeIpProxyProviderValue(state?.ipProxyService);
-  const proxySettings = await getChromeProxySettings({ incognito: false }).catch(() => null);
+  const restoreScope = typeof resolveIpProxySettingsScope === 'function'
+    ? resolveIpProxySettingsScope(state)
+    : IP_PROXY_SETTINGS_SCOPE;
+  const proxySettings = await getChromeProxySettings({
+    incognito: restoreScope !== 'regular',
+  }).catch(() => null);
   const controlledByThisExtension = String(proxySettings?.levelOfControl || '').trim() === 'controlled_by_this_extension';
   const pacModeActive = String(proxySettings?.value?.mode || '').trim().toLowerCase() === 'pac_script';
   const hasStaleControlledPac = controlledByThisExtension && pacModeActive;

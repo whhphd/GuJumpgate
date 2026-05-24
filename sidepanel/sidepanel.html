@@ -1280,6 +1280,18 @@
       <div class="data-row ip-proxy-fold-row" id="row-ip-proxy-fold" style="display:none;">
         <div id="ip-proxy-fold" class="ip-proxy-fold">
           <div class="ip-proxy-fold-body">
+            <div class="data-row" id="row-ip-proxy-scope" style="display:none;">
+              <span class="data-label">作用范围</span>
+              <select id="select-ip-proxy-scope" class="data-select"
+                title="选择代理生效的浏览器范围；扩展自身的后台 fetch 请求不受此开关控制">
+                <option value="incognito_persistent">仅无痕窗口</option>
+                <option value="regular">所有窗口</option>
+              </select>
+            </div>
+            <div class="data-row ip-proxy-scope-hint-row" id="row-ip-proxy-scope-hint" style="display:none;">
+              <span class="data-label" aria-hidden="true"></span>
+              <span class="setting-caption">仅无痕窗口需要在 chrome://extensions 中勾选「在无痕模式下启用」；扩展自身的后台请求不受此开关控制。</span>
+            </div>
             <div class="data-row" id="row-ip-proxy-service" style="display:none;">
               <span class="data-label">代理服务</span>
               <div class="data-inline">
@@ -1331,12 +1343,15 @@
                   </div>
                   <div class="data-row ip-proxy-column-row" id="row-ip-proxy-protocol" style="display:none;">
                     <span class="data-label">代理协议</span>
-                    <select id="select-ip-proxy-protocol" class="data-select">
-                      <option value="http">HTTP</option>
-                      <option value="https">HTTPS</option>
-                      <option value="socks5">SOCKS5</option>
-                      <option value="socks4">SOCKS4</option>
-                    </select>
+                    <div class="data-inline">
+                      <select id="select-ip-proxy-protocol" class="data-select">
+                        <option value="http">HTTP</option>
+                        <option value="https">HTTPS</option>
+                        <option value="socks5">SOCKS5</option>
+                        <option value="socks4">SOCKS4</option>
+                      </select>
+                      <span class="setting-caption">SOCKS5 带账号密码鉴权依赖浏览器版本，失败请改用 HTTP / HTTPS。</span>
+                    </div>
                   </div>
                   <div class="data-row ip-proxy-column-row" id="row-ip-proxy-username" style="display:none;">
                     <span class="data-label">代理账号</span>
