@@ -4916,7 +4916,7 @@ async function setCurrentHotmailAccount(accountId, options = {}) {
 
 function isAuthorizedHotmailRunAccount(candidate) {
   return Boolean(candidate)
-    && candidate.status === 'authorized'
+    && ['authorized', 'pending'].includes(candidate.status)
     && !candidate.used
     && Boolean(candidate.refreshToken);
 }
@@ -4982,7 +4982,7 @@ async function ensureHotmailAccountForFlow(options = {}) {
     && !isAliasCapacityExhausted(candidate, state)
   ));
   const isReusableAuthorizedHotmailAccount = (account) => Boolean(account)
-    && account.status === 'authorized'
+    && ['authorized', 'pending'].includes(account.status)
     && Boolean(account.refreshToken);
 
   const orderedCandidates = [];
@@ -5116,6 +5116,19 @@ function buildHotmailMailApiFailureAccount(account, errorMessage) {
     ...account,
     status: 'error',
     lastError: String(errorMessage || ''),
+  });
+}
+
+async function markHotmailAccountMailAccessFailed(account, errorMessage) {
+  if (!account?.id) {
+    return null;
+  }
+  const message = String(errorMessage || 'Hotmail 邮箱读取失败。');
+  await addLog(`Hotmail/Outlook：账号 ${account.email || account.id} 邮箱读取失败，已标记为不可用：${message}`, 'warn');
+  return patchHotmailAccount(account.id, {
+    status: 'error',
+    lastError: message,
+    lastUsedAt: Date.now(),
   });
 }
 
@@ -5337,6 +5350,8 @@ async function pollHotmailVerificationCodeViaLocalHelper(step, account, pollPayl
     } catch (err) {
       lastError = err;
       await addLog(`步骤 ${step}：本地助手轮询 Hotmail 失败：${err.message}`, 'warn');
+      await markHotmailAccountMailAccessFailed(workingAccount, err.message);
+      throw new Error(`HOTMAIL_MAIL_ACCESS_RETRY::${err.message}`);
     }
 
     if (attempt < maxAttempts) {
@@ -5344,7 +5359,9 @@ async function pollHotmailVerificationCodeViaLocalHelper(step, account, pollPayl
     }
   }
 
-  throw lastError || new Error(`步骤 ${step}：本地助手未返回新的匹配验证码。`);
+  const finalError = lastError || new Error(`步骤 ${step}：本地助手未返回新的匹配验证码。`);
+  await markHotmailAccountMailAccessFailed(workingAccount, finalError.message);
+  throw new Error(`HOTMAIL_MAIL_ACCESS_RETRY::${finalError.message}`);
 }
 
 async function fetchHotmailMailboxMessages(account, mailboxes = HOTMAIL_MAILBOXES) {
@@ -5406,13 +5423,19 @@ async function ensureHotmailMailboxReadyForAutoRunRound(options = {}) {
     }
 
     let account = null;
-    if (remainingAuthorizedAccounts.length) {
+    const usingAuthorizedAccount = remainingAuthorizedAccounts.length > 0;
+    if (usingAuthorizedAccount) {
       account = await ensureHotmailAccountForFlow({
         allowAllocate: true,
         markUsed: false,
         preferredAccountId,
         excludeIds: [...exhaustedAccountIds],
       });
+      await addLog(
+        `自动运行${buildRoundLabel()}第 ${attemptRun} 次尝试开始前，使用已校验 Hotmail 账号 ${account.email}，跳过邮箱可用性预检。`,
+        'info'
+      );
+      return account;
     } else {
       const pendingAccount = pickPendingHotmailAccountForVerification(latestAccounts, {
         preferredAccountId,
@@ -9482,7 +9505,7 @@ function isRestartCurrentAttemptError(error) {
     return loggingStatus.isRestartCurrentAttemptError(error);
   }
   const message = String(typeof error === 'string' ? error : error?.message || '');
-  return /当前邮箱已存在，需要重新开始新一轮|SIGNUP_PHONE_PASSWORD_MISMATCH::/i.test(message);
+  return /当前邮箱已存在，需要重新开始新一轮|SIGNUP_PHONE_PASSWORD_MISMATCH::|HOTMAIL_MAIL_ACCESS_RETRY::/i.test(message);
 }
 
 function isSignupPhonePasswordMismatchFailure(error) {
