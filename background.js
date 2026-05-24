@@ -605,7 +605,9 @@ const DEFAULT_HOTMAIL_REMOTE_BASE_URL = '';
 const DEFAULT_HOTMAIL_LOCAL_BASE_URL = 'http://127.0.0.1:17373';
 const DEFAULT_ACCOUNT_RUN_HISTORY_HELPER_BASE_URL = DEFAULT_HOTMAIL_LOCAL_BASE_URL;
 const DEFAULT_LOCAL_CPA_JSON_RELATIVE_AUTH_DIR = '.cli-proxy-api';
-const HOTMAIL_LOCAL_HELPER_TIMEOUT_MS = 45000;
+const HOTMAIL_LOCAL_HELPER_TIMEOUT_MS = 150000;
+const HOTMAIL_LOCAL_HELPER_MAX_ATTEMPTS = 2;
+const HOTMAIL_LOCAL_HELPER_RETRY_DELAY_MS = 2000;
 const DEFAULT_LUCKMAIL_PROJECT_CODE = 'openai';
 const DEFAULT_HERO_SMS_BASE_URL = 'https://hero-sms.com/stubs/handler_api.php';
 const HERO_SMS_SERVICE_CODE = 'dr';
@@ -5148,6 +5150,68 @@ async function fetchHotmailMailboxMessagesFromRemoteService(account, mailboxes =
   };
 }
 
+async function requestHotmailLocalHelperJson(path, bodyPayload, options = {}) {
+  const serviceSettings = getHotmailServiceSettings(await getState());
+  const { timeoutMs } = getHotmailMailApiRequestConfig();
+  const requestTimeoutMs = Math.max(timeoutMs, HOTMAIL_LOCAL_HELPER_TIMEOUT_MS);
+  const endpoint = buildHotmailLocalEndpoint(serviceSettings.localBaseUrl, path);
+  const maxAttempts = Math.max(1, Number(options.maxAttempts) || HOTMAIL_LOCAL_HELPER_MAX_ATTEMPTS);
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    throwIfStopped();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), requestTimeoutMs);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(bodyPayload),
+        signal: controller.signal,
+      });
+
+      const text = await response.text();
+      let payload = {};
+      try {
+        payload = text ? JSON.parse(text) : {};
+      } catch {
+        payload = { raw: text };
+      }
+
+      if (!response.ok || payload?.ok === false) {
+        const errorText = payload?.error || payload?.message || text || `HTTP ${response.status}`;
+        throw new Error(`Hotmail 本地助手返回失败：${errorText}`);
+      }
+
+      return payload;
+    } catch (err) {
+      const isTimeout = err?.name === 'AbortError';
+      const isHelperResponseFailure = /^Hotmail 本地助手返回失败：/.test(err?.message || '');
+      lastError = isTimeout
+        ? new Error(`Hotmail 本地助手请求超时（>${Math.round(requestTimeoutMs / 1000)} 秒）`)
+        : new Error(`Hotmail 本地助手请求失败：${err.message}`);
+
+      if (isHelperResponseFailure || attempt >= maxAttempts) {
+        throw isHelperResponseFailure ? err : lastError;
+      }
+
+      await addLog(
+        `Hotmail 本地助手 ${path} 第 ${attempt}/${maxAttempts} 次请求失败：${lastError.message}，${Math.round(HOTMAIL_LOCAL_HELPER_RETRY_DELAY_MS / 1000)} 秒后重试。`,
+        'warn'
+      );
+      await sleepWithStop(HOTMAIL_LOCAL_HELPER_RETRY_DELAY_MS);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  throw lastError || new Error('Hotmail 本地助手请求失败。');
+}
+
 async function requestHotmailLocalMessages(account, mailboxes = HOTMAIL_MAILBOXES) {
   if (!account?.email) {
     throw new Error('Hotmail 账号缺少邮箱地址。');
@@ -5159,50 +5223,13 @@ async function requestHotmailLocalMessages(account, mailboxes = HOTMAIL_MAILBOXE
     throw new Error(`Hotmail 账号 ${account.email || account.id} 缺少刷新令牌（refresh token）。`);
   }
 
-  const serviceSettings = getHotmailServiceSettings(await getState());
-  const { timeoutMs } = getHotmailMailApiRequestConfig();
-  const requestTimeoutMs = Math.max(timeoutMs, HOTMAIL_LOCAL_HELPER_TIMEOUT_MS);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), requestTimeoutMs);
-
-  let response;
-  try {
-    response = await fetch(buildHotmailLocalEndpoint(serviceSettings.localBaseUrl, '/messages'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        email: account.email,
-        clientId: account.clientId,
-        refreshToken: account.refreshToken,
-        mailboxes,
-        top: 5,
-      }),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (err?.name === 'AbortError') {
-      throw new Error(`Hotmail 本地助手请求超时（>${Math.round(requestTimeoutMs / 1000)} 秒）`);
-    }
-    throw new Error(`Hotmail 本地助手请求失败：${err.message}`);
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  const text = await response.text();
-  let payload = {};
-  try {
-    payload = text ? JSON.parse(text) : {};
-  } catch {
-    payload = { raw: text };
-  }
-
-  if (!response.ok || payload?.ok === false) {
-    const errorText = payload?.error || payload?.message || text || `HTTP ${response.status}`;
-    throw new Error(`Hotmail 本地助手返回失败：${errorText}`);
-  }
+  const payload = await requestHotmailLocalHelperJson('/messages', {
+    email: account.email,
+    clientId: account.clientId,
+    refreshToken: account.refreshToken,
+    mailboxes,
+    top: 5,
+  });
 
   const rawMessages = Array.isArray(payload?.messages) ? payload.messages : [];
   const normalizedMessages = normalizeHotmailMailApiMessages(rawMessages).map((message, index) => ({
@@ -5244,56 +5271,19 @@ async function requestHotmailLocalCode(account, pollPayload = {}) {
     throw new Error(`Hotmail 账号 ${account.email || account.id} 缺少刷新令牌（refresh token）。`);
   }
 
-  const serviceSettings = getHotmailServiceSettings(await getState());
-  const { timeoutMs } = getHotmailMailApiRequestConfig();
-  const requestTimeoutMs = Math.max(timeoutMs, HOTMAIL_LOCAL_HELPER_TIMEOUT_MS);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), requestTimeoutMs);
-
-  let response;
-  try {
-    response = await fetch(buildHotmailLocalEndpoint(serviceSettings.localBaseUrl, '/code'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        email: account.email,
-        clientId: account.clientId,
-        refreshToken: account.refreshToken,
-        mailboxes: HOTMAIL_MAILBOXES,
-        top: 5,
-        senderFilters: pollPayload.senderFilters || [],
-        subjectFilters: pollPayload.subjectFilters || [],
-        requiredKeywords: pollPayload.requiredKeywords || [],
-        codePatterns: pollPayload.codePatterns || [],
-        excludeCodes: pollPayload.excludeCodes || [],
-        filterAfterTimestamp: Number(pollPayload.filterAfterTimestamp || 0) || 0,
-      }),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (err?.name === 'AbortError') {
-      throw new Error(`Hotmail 本地助手请求超时（>${Math.round(requestTimeoutMs / 1000)} 秒）`);
-    }
-    throw new Error(`Hotmail 本地助手请求失败：${err.message}`);
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  const text = await response.text();
-  let payload = {};
-  try {
-    payload = text ? JSON.parse(text) : {};
-  } catch {
-    payload = { raw: text };
-  }
-
-  if (!response.ok || payload?.ok === false) {
-    const errorText = payload?.error || payload?.message || text || `HTTP ${response.status}`;
-    throw new Error(`Hotmail 本地助手返回失败：${errorText}`);
-  }
+  const payload = await requestHotmailLocalHelperJson('/code', {
+    email: account.email,
+    clientId: account.clientId,
+    refreshToken: account.refreshToken,
+    mailboxes: HOTMAIL_MAILBOXES,
+    top: 5,
+    senderFilters: pollPayload.senderFilters || [],
+    subjectFilters: pollPayload.subjectFilters || [],
+    requiredKeywords: pollPayload.requiredKeywords || [],
+    codePatterns: pollPayload.codePatterns || [],
+    excludeCodes: pollPayload.excludeCodes || [],
+    filterAfterTimestamp: Number(pollPayload.filterAfterTimestamp || 0) || 0,
+  });
 
   const normalizedMessage = payload?.message
     ? {
