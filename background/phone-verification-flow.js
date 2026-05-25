@@ -899,6 +899,11 @@
 
     function getPhoneSmsProviderLabel(providerId) {
       const provider = normalizePhoneSmsProvider(providerId);
+      const rootScope = typeof self !== 'undefined' ? self : globalThis;
+      const registryLabel = rootScope.PhoneSmsProviderRegistry?.getProviderLabel?.(provider);
+      if (registryLabel) {
+        return registryLabel;
+      }
       if (provider === PHONE_SMS_PROVIDER_FIVE_SIM) {
         return '5sim';
       }
@@ -5253,9 +5258,12 @@
             }
           );
           const providerLabel = getPhoneSmsProviderLabel(providerCandidate);
-          const providerCountryLabel = providerCandidate === provider
-            ? resolveCountryLabelById(activation.countryId)
-            : String(activation?.countryLabel || activation?.countryId || '').trim();
+          // ooeao 是预付号码池，号码没有"国家"概念，避免误印成 HeroSMS 兜底国家。
+          const providerCountryLabel = providerCandidate === PHONE_SMS_PROVIDER_OOEAO
+            ? ''
+            : (providerCandidate === provider
+              ? resolveCountryLabelById(activation.countryId)
+              : String(activation?.countryLabel || activation?.countryId || '').trim());
           if (providerCandidate !== provider) {
             await addLog(
               `步骤 9：主接码平台 ${getPhoneSmsProviderLabel(provider)} 暂无可用号码，已回退到 ${providerLabel}${providerCountryLabel ? ` / ${providerCountryLabel}` : ''}。`,
