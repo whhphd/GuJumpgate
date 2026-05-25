@@ -4151,6 +4151,43 @@ function findLoginEntryTrigger() {
   }) || null;
 }
 
+// "欢迎回来" 账户选择页：Auth0 会显示已登录账户卡片，点了能直接复用 session 跳过邮箱接码。
+// 当 payload.email 与卡片可见文本完全匹配时返回该卡片元素；同时避免误点卡片里的 X 删除按钮。
+function findExistingAccountTriggerForEmail(targetEmail) {
+  const normalizedTarget = String(targetEmail || '').trim().toLowerCase();
+  if (!normalizedTarget || !/.+@.+\..+/.test(normalizedTarget)) {
+    return null;
+  }
+  const isLikelyRemoveButton = (el) => {
+    const aria = String(el.getAttribute?.('aria-label') || '').toLowerCase();
+    const title = String(el.getAttribute?.('title') || '').toLowerCase();
+    if (/delete|remove|forget|clear|删除|移除|忘掉|忘记/.test(`${aria} ${title}`)) {
+      return true;
+    }
+    const text = String(getActionText(el) || '').trim();
+    if (text.length <= 2 && /[×✕✖✗xX]/.test(text)) {
+      return true;
+    }
+    return false;
+  };
+  const candidates = Array.from(document.querySelectorAll(
+    'button, a, [role="button"], [role="link"]'
+  )).filter((el) => isVisibleElement(el) && isActionEnabled(el) && !isLikelyRemoveButton(el));
+
+  const matches = candidates.filter((el) => {
+    const text = String(getActionText(el) || '').toLowerCase();
+    if (!text.includes(normalizedTarget)) return false;
+    if (LOGIN_EXTERNAL_IDP_PATTERN.test(text)) return false;
+    return true;
+  });
+  if (!matches.length) {
+    return null;
+  }
+  // 嵌套场景下父子都能匹配，取文本最长那个（外层卡片含完整 name + email），避免误点子节点。
+  matches.sort((a, b) => String(getActionText(b) || '').length - String(getActionText(a) || '').length);
+  return matches[0];
+}
+
 function findLoginPhoneEntryTrigger() {
   const candidates = Array.from(document.querySelectorAll(
     'button, a, [role="button"], [role="link"], input[type="button"], input[type="submit"]'
@@ -5630,7 +5667,12 @@ async function step6OpenLoginEntry(payload, snapshot) {
   const preferPhoneLogin = String(payload?.loginIdentifierType || '').trim() === 'phone' || (!payload?.email && payload?.phoneNumber);
   const genericEntryTrigger = currentSnapshot.loginEntryTrigger || findLoginEntryTrigger();
   const phoneEntryTrigger = currentSnapshot.phoneEntryTrigger || findLoginPhoneEntryTrigger();
-  const trigger = genericEntryTrigger || (preferPhoneLogin ? phoneEntryTrigger : null);
+  const reuseAccountTrigger = (!preferPhoneLogin && payload?.email)
+    ? findExistingAccountTriggerForEmail(payload.email)
+    : null;
+  const trigger = reuseAccountTrigger
+    || genericEntryTrigger
+    || (preferPhoneLogin ? phoneEntryTrigger : null);
   if (!trigger || !isActionEnabled(trigger)) {
     return createStep6RecoverableResult('missing_login_entry_trigger', currentSnapshot, {
       message: preferPhoneLogin
@@ -5639,11 +5681,22 @@ async function step6OpenLoginEntry(payload, snapshot) {
     });
   }
 
-  log(`检测到登录入口页，正在点击 "${getActionText(trigger).slice(0, 80)}"...`, 'info', { step: visibleStep, stepKey: 'oauth-login' });
+  const isReuseClick = Boolean(reuseAccountTrigger && trigger === reuseAccountTrigger);
+  const triggerLabel = getActionText(trigger).slice(0, 80);
+  log(
+    isReuseClick
+      ? `检测到已登录账户卡片 ${payload.email}，直接点击复用 session（"${triggerLabel}"）...`
+      : `检测到登录入口页，正在点击 "${triggerLabel}"...`,
+    'info',
+    { step: visibleStep, stepKey: 'oauth-login' }
+  );
   await humanPause(350, 900);
-  await performOperationWithDelay({ stepKey: 'oauth-login', kind: 'click', label: 'open-login-entry' }, async () => {
-    simulateClick(trigger);
-  });
+  await performOperationWithDelay(
+    { stepKey: 'oauth-login', kind: 'click', label: isReuseClick ? 'reuse-existing-account' : 'open-login-entry' },
+    async () => {
+      simulateClick(trigger);
+    }
+  );
   const nextSnapshot = await waitForLoginEntryOpenTransition();
 
   if (nextSnapshot.state === 'email_page') {
