@@ -197,7 +197,27 @@
         .map((id) => normalizeString(id))
         .filter(Boolean)
     );
-    return normalizePool(pool).find((entry) => isAvailable(entry) && !blocked.has(entry.activationId)) || null;
+    const rawBlockedPhones = Array.isArray(options.blockedPhoneNumbers)
+      ? options.blockedPhoneNumbers
+      : (options.blockedPhoneNumbers instanceof Set
+        ? Array.from(options.blockedPhoneNumbers)
+        : []);
+    const blockedPhones = new Set(
+      rawBlockedPhones
+        .map((phone) => normalizePhoneNumber(phone))
+        .filter(Boolean)
+    );
+    const candidates = normalizePool(pool).filter((entry) =>
+      isAvailable(entry)
+      && !blocked.has(entry.activationId)
+      && !blockedPhones.has(entry.phoneNumber)
+    );
+    if (!candidates.length) {
+      return null;
+    }
+    // 随机挑一个未被屏蔽 / 未用满的号，避免每次都选池子里的第一个。
+    const index = Math.floor(Math.random() * candidates.length);
+    return candidates[Math.min(index, candidates.length - 1)] || null;
   }
 
   function extractVerificationCode(rawText = '') {

@@ -197,6 +197,81 @@
       return normalizePhoneSmsProvider(state?.phoneSmsProvider || DEFAULT_PHONE_SMS_PROVIDER) === PHONE_SMS_PROVIDER_5SIM;
     }
 
+    // 失败号码冷却：纯内存，进程重启即清空。
+    // key: `${provider}:${phoneNumber}`，val: 解禁时间戳 ms。
+    const phoneActivationCooldownByKey = new Map();
+    const FAILED_ACTIVATION_COOLDOWN_MS = 10 * 60 * 1000;
+
+    function buildPhoneActivationCooldownKey(provider, phoneNumber) {
+      const normalizedProvider = normalizePhoneSmsProvider(provider || '');
+      const normalizedPhone = String(phoneNumber || '').trim();
+      if (!normalizedProvider || !normalizedPhone) {
+        return '';
+      }
+      return `${normalizedProvider}:${normalizedPhone}`;
+    }
+
+    function pruneExpiredActivationCooldowns() {
+      const now = Date.now();
+      for (const [key, until] of phoneActivationCooldownByKey) {
+        if (!Number.isFinite(until) || until <= now) {
+          phoneActivationCooldownByKey.delete(key);
+        }
+      }
+    }
+
+    function markActivationCooldown(activation, reason = '', durationMs = FAILED_ACTIVATION_COOLDOWN_MS) {
+      if (!activation || typeof activation !== 'object') {
+        return;
+      }
+      const key = buildPhoneActivationCooldownKey(activation.provider, activation.phoneNumber);
+      if (!key) {
+        return;
+      }
+      pruneExpiredActivationCooldowns();
+      const ttl = Math.max(1000, Math.floor(Number(durationMs) || FAILED_ACTIVATION_COOLDOWN_MS));
+      phoneActivationCooldownByKey.set(key, Date.now() + ttl);
+    }
+
+    function getCooldownPhonesForProvider(providerId) {
+      pruneExpiredActivationCooldowns();
+      const normalizedProvider = normalizePhoneSmsProvider(providerId || '');
+      if (!normalizedProvider) {
+        return new Set();
+      }
+      const phones = new Set();
+      const prefix = `${normalizedProvider}:`;
+      for (const key of phoneActivationCooldownByKey.keys()) {
+        if (key.startsWith(prefix)) {
+          phones.add(key.slice(prefix.length));
+        }
+      }
+      return phones;
+    }
+
+    function releaseEarliestCooldownForProvider(providerId) {
+      pruneExpiredActivationCooldowns();
+      const normalizedProvider = normalizePhoneSmsProvider(providerId || '');
+      if (!normalizedProvider) {
+        return '';
+      }
+      const prefix = `${normalizedProvider}:`;
+      let earliestKey = '';
+      let earliestUntil = Infinity;
+      for (const [key, until] of phoneActivationCooldownByKey) {
+        if (!key.startsWith(prefix)) continue;
+        if (until < earliestUntil) {
+          earliestUntil = until;
+          earliestKey = key;
+        }
+      }
+      if (!earliestKey) {
+        return '';
+      }
+      phoneActivationCooldownByKey.delete(earliestKey);
+      return earliestKey.slice(prefix.length);
+    }
+
     function normalizeNexSmsCountryId(value, fallback = 0) {
       const parsed = Math.floor(Number(value));
       if (Number.isFinite(parsed) && parsed >= 0) {
@@ -3609,7 +3684,30 @@
         if (!provider) {
           throw new Error('ooeao 模块未加载，无法获取号码池。');
         }
-        return provider.requestActivation(state, options);
+        const cooldownPhones = getCooldownPhonesForProvider(PHONE_SMS_PROVIDER_OOEAO);
+        const ooeaoOptions = cooldownPhones.size
+          ? { ...options, blockedPhoneNumbers: Array.from(cooldownPhones) }
+          : options;
+        try {
+          return await provider.requestActivation(state, ooeaoOptions);
+        } catch (error) {
+          const message = String(error?.message || '');
+          if (cooldownPhones.size && /号码池中已没有可用号码/.test(message)) {
+            const released = releaseEarliestCooldownForProvider(PHONE_SMS_PROVIDER_OOEAO);
+            if (released) {
+              await addLog(
+                `步骤 9：ooeao 号码池全部在冷却，强制释放最早到期号 ${released} 重新选号。`,
+                'warn'
+              );
+              const nextPhones = getCooldownPhonesForProvider(PHONE_SMS_PROVIDER_OOEAO);
+              return await provider.requestActivation(state, {
+                ...options,
+                blockedPhoneNumbers: Array.from(nextPhones),
+              });
+            }
+          }
+          throw error;
+        }
       }
       const config = resolvePhoneConfig(state);
       if (config.provider === PHONE_SMS_PROVIDER_5SIM) {
@@ -6645,6 +6743,7 @@
 
       const rotateActivationAfterAddPhoneFailure = async (failureReason, failureCode, submitState = {}) => {
         await markPreferredActivationExhausted(failureCode || failureReason);
+        markActivationCooldown(activation, failureCode || failureReason || 'add_phone_rejected');
         usedNumberReplacementAttempts += 1;
         if (usedNumberReplacementAttempts > maxNumberReplacementAttempts) {
           throw buildPhoneReplacementLimitError(maxNumberReplacementAttempts, failureCode || 'add_phone_rejected');
@@ -7059,6 +7158,7 @@
             await markCountrySmsFailure(activation.countryId, replaceReason || 'sms_timeout', activation.provider);
           }
           await markPreferredActivationExhausted(replaceReason || 'replace_number');
+          markActivationCooldown(activation, replaceReason || 'replace_number');
 
           usedNumberReplacementAttempts += 1;
           if (usedNumberReplacementAttempts > maxNumberReplacementAttempts) {
