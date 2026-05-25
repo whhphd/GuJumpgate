@@ -4471,6 +4471,15 @@ function createStep6OAuthConsentSuccessResult(snapshot, options = {}) {
   });
 }
 
+function createStep6PhoneStageSuccessResult(snapshot, options = {}) {
+  return createStep6SuccessResult(snapshot, {
+    ...options,
+    via: options.via || 'phone_stage_page',
+    loginVerificationRequestedAt: null,
+    skipLoginVerificationStep: true,
+  });
+}
+
 function createStep6AddEmailSuccessResult(snapshot, options = {}) {
   return {
     ...createStep6SuccessResult(snapshot, {
@@ -4597,6 +4606,7 @@ async function finalizeStep6VerificationReady(options = {}) {
     timeout = 12000,
     via = 'verification_page_ready',
     allowPhoneVerificationPage = false,
+    skipLoginVerificationOnPhoneStage = false,
   } = options;
   const start = Date.now();
   const maxRounds = 3;
@@ -4656,7 +4666,20 @@ async function finalizeStep6VerificationReady(options = {}) {
     }
 
     if (snapshot.state === 'add_phone_page') {
+      if (skipLoginVerificationOnPhoneStage) {
+        log('认证页已进入手机号页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
+        return createStep6PhoneStageSuccessResult(snapshot, {
+          via: `${via}_add_phone`,
+        });
+      }
       throw new Error(`登录验证码页面准备过程中页面进入手机号页面。URL: ${snapshot.url}`);
+    }
+
+    if (snapshot.state === 'phone_verification_page' && skipLoginVerificationOnPhoneStage) {
+      log('认证页已进入手机验证码页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
+      return createStep6PhoneStageSuccessResult(snapshot, {
+        via: `${via}_phone_verification`,
+      });
     }
   }
 
@@ -4683,6 +4706,18 @@ async function finalizeStep6VerificationReady(options = {}) {
     log('认证页已进入添加邮箱页，登录阶段完成。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
     return createStep6AddEmailSuccessResult(snapshot, {
       via: `${via}_add_email`,
+    });
+  }
+  if (snapshot.state === 'add_phone_page' && skipLoginVerificationOnPhoneStage) {
+    log('认证页已进入手机号页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
+    return createStep6PhoneStageSuccessResult(snapshot, {
+      via: `${via}_add_phone`,
+    });
+  }
+  if (snapshot.state === 'phone_verification_page' && skipLoginVerificationOnPhoneStage) {
+    log('认证页已进入手机验证码页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
+    return createStep6PhoneStageSuccessResult(snapshot, {
+      via: `${via}_phone_verification`,
     });
   }
   if (snapshot.state === 'login_timeout_error_page') {
@@ -5711,11 +5746,24 @@ async function step6OpenLoginEntry(payload, snapshot) {
   if (nextSnapshot.state === 'phone_entry_page') {
     return step6LoginFromPhonePage(payload, nextSnapshot);
   }
+  if (isReuseClick && nextSnapshot.state === 'add_phone_page') {
+    log('复用已登录账户后已直接进入手机号页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
+    return createStep6PhoneStageSuccessResult(nextSnapshot, {
+      via: 'reuse_account_add_phone_page',
+    });
+  }
+  if (isReuseClick && nextSnapshot.state === 'phone_verification_page') {
+    log('复用已登录账户后已直接进入手机验证码页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
+    return createStep6PhoneStageSuccessResult(nextSnapshot, {
+      via: 'reuse_account_phone_verification_page',
+    });
+  }
   if (nextSnapshot.state === 'verification_page') {
     return finalizeStep6VerificationReady({
       visibleStep,
       loginVerificationRequestedAt: null,
       via: 'entry_open_verification_page',
+      skipLoginVerificationOnPhoneStage: isReuseClick,
     });
   }
   if (nextSnapshot.state === 'oauth_consent_page') {

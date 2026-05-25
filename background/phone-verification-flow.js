@@ -1293,17 +1293,21 @@
         return;
       }
       try {
+        if (updated.successfulUses >= updated.maxUses) {
+          const phone = String(updated.phoneNumber || '').trim();
+          const nextPool = (Array.isArray(state?.ooeaoPool) ? state.ooeaoPool : [])
+            .filter((entry) => String(entry?.phoneNumber || '').trim() !== phone);
+          await setPhoneRuntimeState({ ooeaoPool: nextPool });
+          if (typeof addLog === 'function') {
+            await addLog(
+              `ooeao 号码 ${updated.phoneNumber} 连续 ${updated.consecutiveFailures} 次未收到验证码，已从号码池移除。`,
+              'warn'
+            );
+          }
+          return;
+        }
         const nextPool = provider.applyPoolUpdate(state?.ooeaoPool, updated);
         await setPhoneRuntimeState({ ooeaoPool: nextPool });
-        if (
-          updated.successfulUses >= updated.maxUses
-          && typeof addLog === 'function'
-        ) {
-          await addLog(
-            `ooeao 号码 ${updated.phoneNumber} 连续 ${updated.consecutiveFailures} 次未收到验证码，已自动淘汰。`,
-            'warn'
-          );
-        }
       } catch (error) {
         if (typeof addLog === 'function') {
           await addLog(

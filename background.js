@@ -12298,8 +12298,6 @@ async function disableLegacyIpProxyFeatureRuntime() {
 
   const state = await getState().catch(() => ({}));
   const patch = {
-    ipProxyEnabled: false,
-    ipProxyAutoSyncEnabled: false,
     ipProxyApplied: false,
     ipProxyAppliedReason: 'feature_removed',
     ipProxyAppliedAt: 0,
@@ -12336,10 +12334,6 @@ async function disableLegacyIpProxyFeatureRuntime() {
     await setState(patch).catch(() => {});
     broadcastDataUpdate(patch);
   }
-  await setPersistentSettings({
-    ipProxyEnabled: false,
-    ipProxyAutoSyncEnabled: false,
-  }).catch(() => {});
 }
 
 async function maybeSwitchIpProxyAfterAutoRunRoundSuccess(payload = {}) {
