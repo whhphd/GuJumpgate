@@ -1237,13 +1237,34 @@
     }
 
     // ooeao 没有平台 API；本地累计「连续接不到码」次数，到阈值时直接把号码拉满淘汰。
+    function findOoeaoPoolEntryByPhone(state = {}, activation) {
+      const phone = String(activation?.phoneNumber || '').trim();
+      if (!phone) {
+        return null;
+      }
+      const pool = Array.isArray(state?.ooeaoPool) ? state.ooeaoPool : [];
+      return pool.find((entry) => String(entry?.phoneNumber || '').trim() === phone) || null;
+    }
+
     async function markOoeaoActivationFailure(state = {}, activation) {
-      try {
-        const provider = getOoeaoProviderForState(state);
-        const updated = provider?.markUseFailed?.(activation);
-        if (!updated) {
-          return;
+      const provider = getOoeaoProviderForState(state);
+      if (!provider?.markUseFailed || !provider?.applyPoolUpdate) {
+        return;
+      }
+      // 用池子里那条带 URL 的为准；运行时 activation 万一掉了 verificationUrl 也能命中。
+      const poolEntry = findOoeaoPoolEntryByPhone(state, activation);
+      const sourceEntry = poolEntry || activation;
+      const updated = provider.markUseFailed(sourceEntry);
+      if (!updated) {
+        if (typeof addLog === 'function') {
+          await addLog(
+            `ooeao 失败计数写回跳过：号码 ${activation?.phoneNumber || '<未知>'} 在号码池中未找到匹配条目。`,
+            'warn'
+          );
         }
+        return;
+      }
+      try {
         const nextPool = provider.applyPoolUpdate(state?.ooeaoPool, updated);
         await setPhoneRuntimeState({ ooeaoPool: nextPool });
         if (
@@ -1255,8 +1276,13 @@
             'warn'
           );
         }
-      } catch (_) {
-        // Best-effort：失败计数不应阻塞主流程。
+      } catch (error) {
+        if (typeof addLog === 'function') {
+          await addLog(
+            `ooeao 失败计数写回 storage 失败：${error?.message || error}`,
+            'warn'
+          );
+        }
       }
     }
 
@@ -4167,15 +4193,29 @@
       }
       if (getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_OOEAO) {
         // ooeao 是预付号码池，没有 setStatus 接口；本地把 successfulUses+1 写回 state.ooeaoPool。
+        const provider = getOoeaoProviderForState(state);
+        if (!provider?.markUseSucceeded || !provider?.applyPoolUpdate) {
+          return;
+        }
+        // 优先用池子里那条带 verificationUrl 的；运行时 activation 万一缺 URL 也能匹配。
+        const poolEntry = findOoeaoPoolEntryByPhone(state, activation);
+        const sourceEntry = poolEntry || activation;
+        const updated = provider.markUseSucceeded(sourceEntry);
+        if (!updated) {
+          await addLog(
+            `ooeao 成功计数写回跳过：号码 ${activation?.phoneNumber || '<未知>'} 在号码池中未找到匹配条目。`,
+            'warn'
+          );
+          return;
+        }
         try {
-          const provider = getOoeaoProviderForState(state);
-          const updated = provider?.markUseSucceeded?.(activation);
-          if (updated && provider?.applyPoolUpdate) {
-            const nextPool = provider.applyPoolUpdate(state?.ooeaoPool, updated);
-            await setPhoneRuntimeState({ ooeaoPool: nextPool });
-          }
-        } catch (_) {
-          // ooeao 回写是 best-effort，不应阻塞主流程。
+          const nextPool = provider.applyPoolUpdate(state?.ooeaoPool, updated);
+          await setPhoneRuntimeState({ ooeaoPool: nextPool });
+        } catch (error) {
+          await addLog(
+            `ooeao 成功计数写回 storage 失败：${error?.message || error}`,
+            'warn'
+          );
         }
         return;
       }
