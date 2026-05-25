@@ -22,7 +22,8 @@
   const VERIFICATION_CODE_AFTER_KEYWORD = /(?:验证代码|验证码|security\s*code|verification\s*code|code)[\s::是为]*([0-9](?:[\s-]?[0-9]){3,7})/i;
   // 关键词在后：`PayPal: 1 2 3 4 5 6 is your security code`
   const VERIFICATION_CODE_BEFORE_KEYWORD = /([0-9](?:[\s-]?[0-9]){3,7})\s*(?:is\s+your\s+)?(?:security|verification)?\s*code/i;
-  const FALLBACK_DIGIT_PATTERN = /\b(\d{4,8})\b/;
+  const WAITING_FOR_SMS_PATTERN = /暂无短信|未收到|短信为空|no\s+sms|waiting|not\s+arrived|empty|no\s+records/i;
+  const FALLBACK_DIGIT_PATTERN = /\b(\d{4,8})\b/g;
 
   function normalizeString(value = '') {
     return String(value || '').trim();
@@ -220,6 +221,28 @@
     return candidates[Math.min(index, candidates.length - 1)] || null;
   }
 
+  function isDateTimeFallbackMatch(text, match) {
+    if (!match) {
+      return false;
+    }
+    const value = String(match[1] || '');
+    const index = Number(match.index) || 0;
+    const before = text.slice(Math.max(0, index - 12), index);
+    const after = text.slice(index + value.length, index + value.length + 12);
+    return /到期|时间|日期|expir|date|time|\d{4}[-/.年]$/i.test(before)
+      || /^[-/.年月日\s:：]\d{1,2}/.test(after)
+      || /^\d{4}$/.test(value) && /^[-/.年]\d{1,2}/.test(after);
+  }
+
+  function extractFallbackVerificationCode(text) {
+    for (const match of text.matchAll(FALLBACK_DIGIT_PATTERN)) {
+      if (!isDateTimeFallbackMatch(text, match)) {
+        return match[1] || '';
+      }
+    }
+    return '';
+  }
+
   function extractVerificationCode(rawText = '') {
     const text = String(rawText || '');
     if (!text) {
@@ -233,9 +256,15 @@
       const digits = String(matched[1]).replace(/\D+/g, '');
       return digits.length >= 4 && digits.length <= 8 ? digits : '';
     };
-    return tryMatch(VERIFICATION_CODE_AFTER_KEYWORD)
-      || tryMatch(VERIFICATION_CODE_BEFORE_KEYWORD)
-      || (text.match(FALLBACK_DIGIT_PATTERN)?.[1] || '');
+    const keywordCode = tryMatch(VERIFICATION_CODE_AFTER_KEYWORD)
+      || tryMatch(VERIFICATION_CODE_BEFORE_KEYWORD);
+    if (keywordCode) {
+      return keywordCode;
+    }
+    if (WAITING_FOR_SMS_PATTERN.test(text)) {
+      return '';
+    }
+    return extractFallbackVerificationCode(text);
   }
 
   function markUseSucceeded(entry) {

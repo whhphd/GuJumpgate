@@ -75,6 +75,13 @@ test('extractVerificationCode joins separated digit groups', () => {
   );
 });
 
+test('extractVerificationCode ignores waiting response expiry date', () => {
+  assert.equal(
+    ooeaoModule.extractVerificationCode('暂无短信|链接到期时间2026-06-02 23:59:59，续费请提前联系客服'),
+    ''
+  );
+});
+
 test('pickAvailable skips numbers that hit max uses', () => {
   const pool = ooeaoModule.normalizePool([
     {
