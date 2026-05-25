@@ -1359,6 +1359,10 @@
             ? normalizeNexSmsCountryId(rawCountryId, 0)
             : normalizeCountryId(rawCountryId, fallbackCountryId)
         );
+      const verificationUrl = String(
+        record.verificationUrl ?? record.url ?? record.smsUrl ?? ''
+      ).trim();
+      const consecutiveFailuresRaw = Number(record.consecutiveFailures);
       return {
         activationId,
         phoneNumber,
@@ -1374,6 +1378,10 @@
         ...(record.source ? { source: String(record.source || '').trim() } : {}),
         ...(record.phoneCodeReceived ? { phoneCodeReceived: true } : {}),
         ...(record.phoneCodeReceivedAt ? { phoneCodeReceivedAt: Math.max(0, Number(record.phoneCodeReceivedAt) || 0) } : {}),
+        ...(verificationUrl ? { verificationUrl } : {}),
+        ...(Number.isFinite(consecutiveFailuresRaw)
+          ? { consecutiveFailures: Math.max(0, Math.floor(consecutiveFailuresRaw)) }
+          : {}),
       };
     }
 

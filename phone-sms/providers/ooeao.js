@@ -324,7 +324,7 @@
   async function pollActivationCode(state = {}, activation, options = {}, deps = {}) {
     const normalized = normalizePoolEntry(activation);
     if (!normalized) {
-      throw new Error('缺少 ooeao 接码订单。');
+      throw new Error('ooeao 当前号码记录无效：缺少手机号或验证码查询 URL。');
     }
     const timeoutMs = Math.max(1000, Number(options.timeoutMs) || DEFAULT_POLL_TIMEOUT_MS);
     const intervalMs = Math.max(1000, Number(options.intervalMs) || DEFAULT_POLL_INTERVAL_MS);
