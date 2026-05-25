@@ -441,6 +441,22 @@
         return;
       }
 
+      // 自动运行启动前主动同步一次 IP 代理（解决「已启用、等待生效」问题）：
+      // service worker 顶层声明的 refreshIpProxyPool 可以直接通过 globalThis 访问。
+      // 同步失败只记日志，不阻塞自动运行启动；同时 skipExitProbe 不影响后续步骤的内置探测。
+      try {
+        const stateBeforeSync = typeof getState === 'function' ? await getState() : null;
+        const refreshFn = typeof globalThis.refreshIpProxyPool === 'function'
+          ? globalThis.refreshIpProxyPool
+          : null;
+        if (stateBeforeSync?.ipProxyEnabled && refreshFn) {
+          await addLog('自动运行启动：正在同步代理...', 'info');
+          await refreshFn({ state: stateBeforeSync, skipExitProbe: true });
+        }
+      } catch (error) {
+        await addLog(`自动运行启动：代理同步失败，将继续启动流程。原因：${error?.message || error}`, 'warn');
+      }
+
       let sessionId = Number.isInteger(options.autoRunSessionId) && options.autoRunSessionId > 0
         ? options.autoRunSessionId
         : 0;

@@ -559,6 +559,7 @@
         group_ids: [],
         ...(preferredAccountName ? { name: preferredAccountName } : {}),
         priority: accountPriority,
+        concurrency: DEFAULT_CONCURRENCY,
         auto_pause_on_expired: true,
         update_existing: true,
       };
