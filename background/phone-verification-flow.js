@@ -6812,6 +6812,18 @@
       const rotateActivationAfterAddPhoneFailure = async (failureReason, failureCode, submitState = {}) => {
         await markPreferredActivationExhausted(failureCode || failureReason);
         markActivationCooldown(activation, failureCode || failureReason || 'add_phone_rejected');
+        if (
+          (failureCode === 'phone_delivery_refused' || failureCode === 'phone_number_used')
+          && getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_OOEAO
+        ) {
+          await removeOoeaoEntryFromPool(
+            state,
+            activation,
+            failureCode === 'phone_delivery_refused'
+              ? `目标站无法向该号码发送验证码：${failureReason}`
+              : `号码已被使用：${failureReason}`
+          );
+        }
         usedNumberReplacementAttempts += 1;
         if (usedNumberReplacementAttempts > maxNumberReplacementAttempts) {
           throw buildPhoneReplacementLimitError(maxNumberReplacementAttempts, failureCode || 'add_phone_rejected');

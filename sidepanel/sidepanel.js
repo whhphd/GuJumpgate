@@ -16493,6 +16493,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.payload.localCpaStep9Mode !== undefined) {
         setLocalCpaStep9Mode(message.payload.localCpaStep9Mode);
       }
+      if (message.payload.ooeaoPool !== undefined && typeof renderOoeaoPool === 'function') {
+        renderOoeaoPool();
+      }
       if (message.payload.panelMode !== undefined) {
         selectPanelMode.value = getExportTargetForPanelMode(message.payload.panelMode || DEFAULT_PANEL_MODE);
         if (selectAccountAccessStrategy) {
