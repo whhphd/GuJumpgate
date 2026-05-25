@@ -4603,6 +4603,9 @@ function setPhoneSmsProviderSelectValue(provider) {
       selectPhoneSmsProvider.dataset.activeProvider = normalizedProvider;
     }
   }
+  if (typeof updateOoeaoPoolVisibility === 'function') {
+    updateOoeaoPoolVisibility();
+  }
   return normalizedProvider;
 }
 
