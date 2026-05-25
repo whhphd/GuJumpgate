@@ -977,7 +977,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   sub2apiGroupNames: DEFAULT_SUB2API_GROUP_NAMES,
   sub2apiAccountPriority: DEFAULT_SUB2API_ACCOUNT_PRIORITY,
   sub2apiDefaultProxyName: DEFAULT_SUB2API_PROXY_NAME,
-  ipProxyEnabled: false,
+  ipProxyEnabled: true,
   ipProxyScope: 'incognito_persistent',
   ipProxyService: DEFAULT_IP_PROXY_SERVICE,
   ipProxyMode: DEFAULT_IP_PROXY_MODE,
