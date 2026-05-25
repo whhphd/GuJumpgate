@@ -457,6 +457,13 @@ const rowHeroSmsMaxPrice = document.getElementById('row-hero-sms-max-price');
 const rowPhoneSmsProvider = document.getElementById('row-phone-sms-provider');
 const rowPhoneSmsProviderOrder = document.getElementById('row-phone-sms-provider-order');
 const rowPhoneSmsProviderOrderActions = document.getElementById('row-phone-sms-provider-order-actions');
+const rowOoeaoPool = document.getElementById('row-ooeao-pool');
+const inputOoeaoPoolImport = document.getElementById('input-ooeao-pool-import');
+const btnOoeaoPoolImport = document.getElementById('btn-ooeao-pool-import');
+const btnOoeaoPoolClearUsed = document.getElementById('btn-ooeao-pool-clear-used');
+const btnOoeaoPoolDeleteAll = document.getElementById('btn-ooeao-pool-delete-all');
+const ooeaoPoolList = document.getElementById('ooeao-pool-list');
+const ooeaoPoolSummary = document.getElementById('ooeao-pool-summary');
 const rowFiveSimApiKey = document.getElementById('row-five-sim-api-key');
 const rowFiveSimCountry = document.getElementById('row-five-sim-country');
 const rowFiveSimCountryFallback = document.getElementById('row-five-sim-country-fallback');
@@ -662,6 +669,7 @@ const PHONE_SMS_PROVIDER_HERO = 'hero-sms';
 const PHONE_SMS_PROVIDER_FIVE_SIM = '5sim';
 const PHONE_SMS_PROVIDER_HERO_SMS = PHONE_SMS_PROVIDER_HERO;
 const PHONE_SMS_PROVIDER_NEXSMS = 'nexsms';
+const PHONE_SMS_PROVIDER_OOEAO = 'ooeao';
 const DEFAULT_PHONE_SMS_PROVIDER = PHONE_SMS_PROVIDER_HERO;
 const DEFAULT_PHONE_SMS_PROVIDER_ORDER = Object.freeze([
   PHONE_SMS_PROVIDER_HERO,
@@ -4492,6 +4500,7 @@ function collectSettingsPayload() {
     nexSmsApiKey: nexSmsApiKeyValue,
     nexSmsCountryOrder: nexSmsCountryOrderValue,
     nexSmsServiceCode: nexSmsServiceCodeValue,
+    ooeaoPool: normalizeOoeaoPoolForPayload(latestState?.ooeaoPool),
     phoneSmsReuseEnabled: phoneSmsReuseEnabledValue,
     heroSmsReuseEnabled: heroSmsReuseEnabledValue,
     freePhoneReuseEnabled: freePhoneReuseEnabledValue,
@@ -17374,4 +17383,117 @@ Promise.allSettled([
   if (nexSmsResult?.status === 'rejected') {
     console.error('加载 NexSMS 国家列表失败：', nexSmsResult.reason);
   }
+});
+
+// ========== ooeao 号码池前端 ==========
+
+function getOoeaoProviderModule() {
+  return typeof window !== 'undefined' ? window.PhoneSmsOoeaoProvider : null;
+}
+
+function normalizeOoeaoPoolForPayload(value) {
+  const provider = getOoeaoProviderModule();
+  if (provider?.normalizePool) {
+    return provider.normalizePool(value);
+  }
+  return Array.isArray(value) ? value : [];
+}
+
+function renderOoeaoPool() {
+  if (!ooeaoPoolList && !ooeaoPoolSummary) return;
+  const pool = normalizeOoeaoPoolForPayload(latestState?.ooeaoPool);
+  if (ooeaoPoolSummary) {
+    ooeaoPoolSummary.textContent = pool.length
+      ? `共 ${pool.length} 个号码（每号最多接码 3 次）。`
+      : '未导入号码（每号最多接码 3 次）。';
+  }
+  if (!ooeaoPoolList) return;
+  ooeaoPoolList.innerHTML = '';
+  pool.forEach((entry) => {
+    const item = document.createElement('div');
+    item.className = 'luckmail-row';
+    const phoneSpan = document.createElement('span');
+    phoneSpan.className = 'mono';
+    phoneSpan.textContent = entry.phoneNumber;
+    const usageSpan = document.createElement('span');
+    usageSpan.className = 'data-value mono';
+    usageSpan.textContent = `已用 ${entry.successfulUses}/${entry.maxUses}`;
+    item.appendChild(phoneSpan);
+    item.appendChild(usageSpan);
+    ooeaoPoolList.appendChild(item);
+  });
+}
+
+function isOoeaoSelected() {
+  const provider = (selectPhoneSmsProvider?.value
+    || latestState?.phoneSmsProvider
+    || DEFAULT_PHONE_SMS_PROVIDER);
+  return String(provider).trim().toLowerCase() === PHONE_SMS_PROVIDER_OOEAO;
+}
+
+function updateOoeaoPoolVisibility() {
+  if (!rowOoeaoPool) return;
+  rowOoeaoPool.style.display = isOoeaoSelected() ? '' : 'none';
+  if (isOoeaoSelected()) {
+    renderOoeaoPool();
+  }
+}
+
+selectPhoneSmsProvider?.addEventListener('change', () => {
+  updateOoeaoPoolVisibility();
+});
+
+btnOoeaoPoolImport?.addEventListener('click', async () => {
+  const provider = getOoeaoProviderModule();
+  if (!provider?.parsePoolText) {
+    showToast?.('ooeao 模块未加载，请重新加载扩展。', 'warn', 2400);
+    return;
+  }
+  const text = String(inputOoeaoPoolImport?.value || '').trim();
+  if (!text) {
+    showToast?.('请先粘贴 ooeao 号码（号码 + URL，每行一个）。', 'warn', 2400);
+    return;
+  }
+  const newEntries = provider.parsePoolText(text);
+  if (!newEntries.length) {
+    showToast?.('未识别到有效的 ooeao 号码格式。', 'warn', 2400);
+    return;
+  }
+  const existing = provider.normalizePool(latestState?.ooeaoPool);
+  const merged = existing.slice();
+  let added = 0;
+  for (const entry of newEntries) {
+    if (merged.some((item) => item.activationId === entry.activationId)) continue;
+    merged.push(entry);
+    added += 1;
+  }
+  syncLatestState({ ooeaoPool: merged });
+  if (inputOoeaoPoolImport) inputOoeaoPoolImport.value = '';
+  renderOoeaoPool();
+  markSettingsDirty(true);
+  await saveSettings({ silent: true }).catch(() => {});
+  showToast?.(`ooeao 已导入 ${added} 个新号码（共 ${merged.length}）。`, 'info', 2200);
+});
+
+btnOoeaoPoolClearUsed?.addEventListener('click', async () => {
+  const provider = getOoeaoProviderModule();
+  const pool = provider ? provider.normalizePool(latestState?.ooeaoPool) : [];
+  const reset = pool.map((entry) => ({ ...entry, successfulUses: 0 }));
+  syncLatestState({ ooeaoPool: reset });
+  renderOoeaoPool();
+  markSettingsDirty(true);
+  await saveSettings({ silent: true }).catch(() => {});
+  showToast?.('已清空 ooeao 号码使用次数。', 'info', 1800);
+});
+
+btnOoeaoPoolDeleteAll?.addEventListener('click', async () => {
+  syncLatestState({ ooeaoPool: [] });
+  renderOoeaoPool();
+  markSettingsDirty(true);
+  await saveSettings({ silent: true }).catch(() => {});
+  showToast?.('已清空 ooeao 号码池。', 'info', 1800);
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateOoeaoPoolVisibility();
 });

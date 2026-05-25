@@ -11,6 +11,7 @@ importScripts(
   'gopay-utils.js',
   'phone-sms/providers/hero-sms.js',
   'phone-sms/providers/five-sim.js',
+  'phone-sms/providers/ooeao.js',
   'phone-sms/providers/registry.js',
   'background/phone-verification-flow.js',
   'background/account-run-history.js',
@@ -619,6 +620,7 @@ const PHONE_SMS_PROVIDER_5SIM = '5sim';
 const PHONE_SMS_PROVIDER_HERO_SMS = PHONE_SMS_PROVIDER_HERO;
 const PHONE_SMS_PROVIDER_FIVE_SIM = PHONE_SMS_PROVIDER_5SIM;
 const PHONE_SMS_PROVIDER_NEXSMS = 'nexsms';
+const PHONE_SMS_PROVIDER_OOEAO = 'ooeao';
 const DEFAULT_PHONE_SMS_PROVIDER = PHONE_SMS_PROVIDER_HERO;
 const DEFAULT_PHONE_SMS_PROVIDER_ORDER = Object.freeze([
   PHONE_SMS_PROVIDER_HERO,
@@ -1156,6 +1158,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   nexSmsApiKey: '',
   nexSmsCountryOrder: [...DEFAULT_NEX_SMS_COUNTRY_ORDER],
   nexSmsServiceCode: DEFAULT_NEX_SMS_SERVICE_CODE,
+  ooeaoPool: [],
   phonePreferredActivation: null,
 };
 
@@ -1658,6 +1661,9 @@ function normalizePhoneSmsProvider(value = '') {
   }
   if (normalized === PHONE_SMS_PROVIDER_NEXSMS) {
     return PHONE_SMS_PROVIDER_NEXSMS;
+  }
+  if (normalized === PHONE_SMS_PROVIDER_OOEAO) {
+    return PHONE_SMS_PROVIDER_OOEAO;
   }
   return PHONE_SMS_PROVIDER_HERO_SMS;
 }
@@ -3226,6 +3232,12 @@ function normalizePersistentSettingValue(key, value) {
       return normalizePhoneSmsProvider(value);
     case 'phoneSmsProviderOrder':
       return normalizePhoneSmsProviderOrder(value);
+    case 'ooeaoPool':
+      {
+        const rootScope = typeof self !== 'undefined' ? self : globalThis;
+        const ooeao = rootScope.PhoneSmsOoeaoProvider;
+        return ooeao?.normalizePool ? ooeao.normalizePool(value) : (Array.isArray(value) ? value : []);
+      }
     case 'autoRunFallbackThreadIntervalMinutes':
       return normalizeAutoRunFallbackThreadIntervalMinutes(value);
     case 'autoRunDelayMinutes':

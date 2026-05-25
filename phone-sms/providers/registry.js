@@ -5,7 +5,10 @@
   const PROVIDER_HERO_SMS = 'hero-sms';
   const PROVIDER_FIVE_SIM = '5sim';
   const PROVIDER_NEXSMS = 'nexsms';
+  const PROVIDER_OOEAO = 'ooeao';
   const DEFAULT_PROVIDER = PROVIDER_HERO_SMS;
+  // 主-备 fallback 池只列入有自动下单/取消能力的 provider；ooeao 是预付号码池，
+  // 用户选中后只用它本身，不参与自动 fallback。
   const DEFAULT_PROVIDER_ORDER = Object.freeze([
     PROVIDER_HERO_SMS,
     PROVIDER_FIVE_SIM,
@@ -26,6 +29,11 @@
       id: PROVIDER_NEXSMS,
       label: 'NexSMS',
       moduleKey: 'PhoneSmsNexSmsProvider',
+    }),
+    [PROVIDER_OOEAO]: Object.freeze({
+      id: PROVIDER_OOEAO,
+      label: 'ooeao',
+      moduleKey: 'PhoneSmsOoeaoProvider',
     }),
   });
 
@@ -125,6 +133,7 @@
     PROVIDER_HERO_SMS,
     PROVIDER_FIVE_SIM,
     PROVIDER_NEXSMS,
+    PROVIDER_OOEAO,
     DEFAULT_PROVIDER,
     DEFAULT_PROVIDER_ORDER,
     PROVIDER_DEFINITIONS,

@@ -1143,6 +1143,19 @@
       return createResolvedFiveSimProvider();
     }
 
+    function getOoeaoProviderForState(_state = {}) {
+      const rootScope = typeof self !== 'undefined' ? self : globalThis;
+      const factory = rootScope?.PhoneSmsOoeaoProvider?.createProvider;
+      if (typeof factory !== 'function') {
+        return null;
+      }
+      return factory({
+        sleepWithStop,
+        throwIfStopped,
+        addLog,
+      });
+    }
+
     function normalizeFiveSimCountryId(value, fallback = 'england') {
       const normalized = String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '');
       return normalized || fallback;
@@ -3554,6 +3567,13 @@
           return provider.requestActivation(state, options);
         }
       }
+      if (normalizePhoneSmsProvider(state?.phoneSmsProvider) === PHONE_SMS_PROVIDER_OOEAO) {
+        const provider = getOoeaoProviderForState(state);
+        if (!provider) {
+          throw new Error('ooeao 模块未加载，无法获取号码池。');
+        }
+        return provider.requestActivation(state, options);
+      }
       const config = resolvePhoneConfig(state);
       if (config.provider === PHONE_SMS_PROVIDER_5SIM) {
         return requestFiveSimActivation(state, options);
@@ -3898,6 +3918,10 @@
           return provider.reuseActivation(state, normalizedActivation);
         }
       }
+      if (getActivationProviderId(normalizedActivation, state) === PHONE_SMS_PROVIDER_OOEAO) {
+        // ooeao 没有平台 API，号码就是预付池里的，本地直接复用即可。
+        return normalizedActivation;
+      }
 
       const config = resolvePhoneConfig(state);
       if (config.provider === PHONE_SMS_PROVIDER_5SIM) {
@@ -4006,6 +4030,20 @@
           return;
         }
       }
+      if (getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_OOEAO) {
+        // ooeao 是预付号码池，没有 setStatus 接口；本地把 successfulUses+1 写回 state.ooeaoPool。
+        try {
+          const provider = getOoeaoProviderForState(state);
+          const updated = provider?.markUseSucceeded?.(activation);
+          if (updated && provider?.applyPoolUpdate) {
+            const nextPool = provider.applyPoolUpdate(state?.ooeaoPool, updated);
+            await setPhoneRuntimeState({ ooeaoPool: nextPool });
+          }
+        } catch (_) {
+          // ooeao 回写是 best-effort，不应阻塞主流程。
+        }
+        return;
+      }
       await setPhoneActivationStatus(state, activation, 6, 'HeroSMS setStatus(6)');
     }
 
@@ -4026,6 +4064,10 @@
             await provider.cancelActivation(state, activation);
             return;
           }
+        }
+        if (getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_OOEAO) {
+          // ooeao 没有取消接口，跳过即可。
+          return;
         }
         await setPhoneActivationStatus(state, activation, 8, 'HeroSMS setStatus(8)');
       } catch (_) {
@@ -4095,6 +4137,10 @@
             await provider.banActivation(state, activation);
             return;
           }
+        }
+        if (getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_OOEAO) {
+          // ooeao 没有 ban 接口，跳过即可。
+          return;
         }
         await setPhoneActivationStatus(state, activation, 8, 'HeroSMS setStatus(8)');
       } catch (_) {
@@ -4256,6 +4302,13 @@
         if (provider) {
           return provider.pollActivationCode(state, normalizedActivation, options);
         }
+      }
+      if (getActivationProviderId(normalizedActivation, state) === PHONE_SMS_PROVIDER_OOEAO) {
+        const provider = getOoeaoProviderForState(state);
+        if (!provider) {
+          throw new Error('ooeao 模块未加载，无法轮询验证码。');
+        }
+        return provider.pollActivationCode(state, normalizedActivation, options);
       }
       const statusAction = resolveActivationStatusAction(normalizedActivation);
 

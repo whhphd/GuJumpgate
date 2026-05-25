@@ -1504,7 +1504,22 @@
                 <option value="hero-sms">HeroSMS</option>
                 <option value="5sim">5sim</option>
                 <option value="nexsms">NexSMS</option>
+                <option value="ooeao">ooeao</option>
               </select>
+            </div>
+            <div class="data-row" id="row-ooeao-pool" style="display:none;">
+              <span class="data-label">ooeao 号码池</span>
+              <div class="data-inline ooeao-pool-stack">
+                <textarea id="input-ooeao-pool-import" class="data-textarea mono" rows="4"
+                  placeholder="每行一个：&#10;+14129562571https://cdc.smslease.link/adminapi/jsscript/smsInfo/ABC_sms?key=...&#10;+16507068865----https://mail-api.yuecheng.shop/adminapi/jsscript/smsInfo/ABC_sms?key=..."></textarea>
+                <div class="data-inline ooeao-pool-actions">
+                  <button id="btn-ooeao-pool-import" class="btn btn-primary btn-sm" type="button">导入号码</button>
+                  <button id="btn-ooeao-pool-clear-used" class="btn btn-ghost btn-xs" type="button">清空次数</button>
+                  <button id="btn-ooeao-pool-delete-all" class="btn btn-ghost btn-xs" type="button">全部删除</button>
+                </div>
+                <div id="ooeao-pool-summary" class="data-value mono">未导入号码（每号最多接码 3 次）。</div>
+                <div id="ooeao-pool-list" class="luckmail-list"></div>
+              </div>
             </div>
             <div class="data-row" id="row-phone-sms-provider-order" style="display:none;">
               <span class="data-label">服务商顺序</span>
@@ -1939,6 +1954,7 @@
   <script src="../gopay-utils.js"></script>
   <script src="../phone-sms/providers/hero-sms.js"></script>
   <script src="../phone-sms/providers/five-sim.js"></script>
+  <script src="../phone-sms/providers/ooeao.js"></script>
   <script src="../phone-sms/providers/registry.js"></script>
   <script src="../icloud-utils.js"></script>
   <script src="../mail-provider-utils.js"></script>
