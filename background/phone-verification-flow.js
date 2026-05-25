@@ -1246,6 +1246,34 @@
       return pool.find((entry) => String(entry?.phoneNumber || '').trim() === phone) || null;
     }
 
+    async function removeOoeaoEntryFromPool(state = {}, activation, reason = '') {
+      const phone = String(activation?.phoneNumber || '').trim();
+      if (!phone) {
+        return;
+      }
+      const pool = Array.isArray(state?.ooeaoPool) ? state.ooeaoPool : [];
+      const nextPool = pool.filter((entry) => String(entry?.phoneNumber || '').trim() !== phone);
+      if (nextPool.length === pool.length) {
+        return;
+      }
+      try {
+        await setPhoneRuntimeState({ ooeaoPool: nextPool });
+        if (typeof addLog === 'function') {
+          await addLog(
+            `ooeao 号码 ${phone} 被目标站标记为不可用（${reason || '未知原因'}），已从号码池移除。`,
+            'warn'
+          );
+        }
+      } catch (error) {
+        if (typeof addLog === 'function') {
+          await addLog(
+            `ooeao 号码 ${phone} 移除写回 storage 失败：${error?.message || error}`,
+            'warn'
+          );
+        }
+      }
+    }
+
     async function markOoeaoActivationFailure(state = {}, activation) {
       const provider = getOoeaoProviderForState(state);
       if (!provider?.markUseFailed || !provider?.applyPoolUpdate) {
@@ -6945,6 +6973,9 @@
                 if (shouldCancelActivation && activation) {
                   await banPhoneActivation(state, activation);
                 }
+                if (getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_OOEAO) {
+                  await removeOoeaoEntryFromPool(state, activation, `add-phone 拒绝：${addPhoneRejectText}`);
+                }
                 await clearCurrentActivation();
                 activation = null;
                 shouldCancelActivation = false;
@@ -7219,6 +7250,17 @@
               activation,
               await getState()
             );
+          }
+          if (
+            activation
+            && getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_OOEAO
+            && (
+              isPhoneNumberUsedError(replaceReason)
+              || replaceReason === 'resend_phone_banned'
+              || replaceReason === 'phone_max_usage_exceeded'
+            )
+          ) {
+            await removeOoeaoEntryFromPool(state, activation, replaceReason);
           }
           await clearCurrentActivation();
           activation = null;
