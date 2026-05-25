@@ -434,6 +434,13 @@
       });
     }
 
+    function getAutoRunStartupLogs(logs = []) {
+      if (!Array.isArray(logs)) {
+        return [];
+      }
+      return logs.filter((entry) => /^自动运行启动：/.test(String(entry?.message || '')));
+    }
+
     async function autoRunLoop(totalRuns, options = {}) {
       let currentRuntime = runtime.get();
       if (currentRuntime.autoRunActive) {
@@ -609,10 +616,12 @@
               autoRunSessionId: sessionId,
               tabRegistry: {},
               sourceLastUrls: {},
+              logs: getAutoRunStartupLogs(prevState.logs),
               ...getAutoRunStatusPayload('running', { currentRun: targetRun, totalRuns, attemptRun, sessionId }),
             };
             await resetState();
             await setState(keepSettings);
+            await addLog(`自动运行启动：第 ${targetRun}/${totalRuns} 轮第 ${attemptRun} 次尝试，正在准备账号、代理和浏览器页面...`, 'info');
             deps.chrome.runtime.sendMessage({ type: 'AUTO_RUN_RESET' }).catch(() => { });
             await sleepWithStop(500);
           } else {
@@ -658,6 +667,7 @@
             });
 
             if (!useExistingProgress && startNodeId === defaultStartNodeId && typeof ensureHotmailMailboxReadyForAutoRunRound === 'function') {
+              await addLog(`自动运行启动：正在准备第 ${targetRun}/${totalRuns} 轮第 ${attemptRun} 次尝试的注册邮箱...`, 'info');
               await ensureHotmailMailboxReadyForAutoRunRound({
                 targetRun,
                 totalRuns,
@@ -666,6 +676,12 @@
               });
             }
 
+            await addLog(
+              useExistingProgress
+                ? `自动运行启动：准备从节点 ${startNodeId} 继续执行。`
+                : `自动运行启动：准备打开浏览器并执行首个节点 ${startNodeId}。`,
+              'info'
+            );
             await runAutoSequenceFromWorkflowNode(startNodeId, {
               targetRun,
               totalRuns,
