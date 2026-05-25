@@ -17417,7 +17417,12 @@ function renderOoeaoPool() {
     phoneSpan.textContent = entry.phoneNumber;
     const usageSpan = document.createElement('span');
     usageSpan.className = 'data-value mono';
-    usageSpan.textContent = `已用 ${entry.successfulUses}/${entry.maxUses}`;
+    const usageText = `已用 ${entry.successfulUses}/${entry.maxUses}`;
+    const failureSuffix = entry.consecutiveFailures > 0
+      ? `（连续失败 ${entry.consecutiveFailures}）`
+      : '';
+    const exhaustedSuffix = entry.successfulUses >= entry.maxUses ? '（已淘汰）' : '';
+    usageSpan.textContent = `${usageText}${failureSuffix}${exhaustedSuffix}`;
     item.appendChild(phoneSpan);
     item.appendChild(usageSpan);
     ooeaoPoolList.appendChild(item);
@@ -17478,7 +17483,11 @@ btnOoeaoPoolImport?.addEventListener('click', async () => {
 btnOoeaoPoolClearUsed?.addEventListener('click', async () => {
   const provider = getOoeaoProviderModule();
   const pool = provider ? provider.normalizePool(latestState?.ooeaoPool) : [];
-  const reset = pool.map((entry) => ({ ...entry, successfulUses: 0 }));
+  const reset = pool.map((entry) => ({
+    ...entry,
+    successfulUses: 0,
+    consecutiveFailures: 0,
+  }));
   syncLatestState({ ooeaoPool: reset });
   renderOoeaoPool();
   markSettingsDirty(true);

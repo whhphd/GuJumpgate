@@ -1156,6 +1156,30 @@
       });
     }
 
+    // ooeao 没有平台 API；本地累计「连续接不到码」次数，到阈值时直接把号码拉满淘汰。
+    async function markOoeaoActivationFailure(state = {}, activation) {
+      try {
+        const provider = getOoeaoProviderForState(state);
+        const updated = provider?.markUseFailed?.(activation);
+        if (!updated) {
+          return;
+        }
+        const nextPool = provider.applyPoolUpdate(state?.ooeaoPool, updated);
+        await setPhoneRuntimeState({ ooeaoPool: nextPool });
+        if (
+          updated.successfulUses >= updated.maxUses
+          && typeof addLog === 'function'
+        ) {
+          await addLog(
+            `ooeao 号码 ${updated.phoneNumber} 连续 ${updated.consecutiveFailures} 次未收到验证码，已自动淘汰。`,
+            'warn'
+          );
+        }
+      } catch (_) {
+        // Best-effort：失败计数不应阻塞主流程。
+      }
+    }
+
     function normalizeFiveSimCountryId(value, fallback = 'england') {
       const normalized = String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '');
       return normalized || fallback;
@@ -4066,7 +4090,8 @@
           }
         }
         if (getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_OOEAO) {
-          // ooeao 没有取消接口，跳过即可。
+          // ooeao 没有取消接口；累计连续失败，达到阈值时淘汰这条号码。
+          await markOoeaoActivationFailure(state, activation);
           return;
         }
         await setPhoneActivationStatus(state, activation, 8, 'HeroSMS setStatus(8)');
@@ -4139,7 +4164,8 @@
           }
         }
         if (getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_OOEAO) {
-          // ooeao 没有 ban 接口，跳过即可。
+          // ooeao 没有 ban 接口；和取消一起复用连续失败淘汰逻辑。
+          await markOoeaoActivationFailure(state, activation);
           return;
         }
         await setPhoneActivationStatus(state, activation, 8, 'HeroSMS setStatus(8)');

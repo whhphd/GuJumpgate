@@ -10,6 +10,7 @@
   const PROVIDER_ID = 'ooeao';
   const PROVIDER_LABEL = 'ooeao';
   const DEFAULT_MAX_USES = 3;
+  const DEFAULT_MAX_CONSECUTIVE_FAILURES = 3;
   const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
   const DEFAULT_POLL_INTERVAL_MS = 5000;
   const DEFAULT_POLL_TIMEOUT_MS = 180000;
@@ -129,6 +130,7 @@
         phoneNumber: parsed.phoneNumber,
         verificationUrl: parsed.verificationUrl,
         successfulUses: 0,
+        consecutiveFailures: 0,
         maxUses,
       });
     }
@@ -153,12 +155,14 @@
       maxUses,
       normalizeUseCount(entry.successfulUses, 0)
     );
+    const consecutiveFailures = normalizeUseCount(entry.consecutiveFailures, 0);
     return {
       provider: PROVIDER_ID,
       activationId: buildActivationId(phoneNumber, verificationUrl),
       phoneNumber,
       verificationUrl,
       successfulUses,
+      consecutiveFailures,
       maxUses,
     };
   }
@@ -221,10 +225,32 @@
     }
     return {
       ...normalized,
+      consecutiveFailures: 0,
       successfulUses: Math.min(
         normalized.maxUses,
         normalizeUseCount(normalized.successfulUses, 0) + 1
       ),
+    };
+  }
+
+  // 接不到码或本轮失败时调用：累计失败，到阈值就把号码用满直接淘汰，下次 pickAvailable 不再选。
+  function markUseFailed(entry, options = {}) {
+    const normalized = normalizePoolEntry(entry);
+    if (!normalized) {
+      return null;
+    }
+    const threshold = Math.max(1, Math.floor(Number(options.maxConsecutiveFailures) || DEFAULT_MAX_CONSECUTIVE_FAILURES));
+    const nextFailures = normalizeUseCount(normalized.consecutiveFailures, 0) + 1;
+    if (nextFailures >= threshold) {
+      return {
+        ...normalized,
+        consecutiveFailures: nextFailures,
+        successfulUses: normalized.maxUses,
+      };
+    }
+    return {
+      ...normalized,
+      consecutiveFailures: nextFailures,
     };
   }
 
@@ -370,6 +396,7 @@
       id: PROVIDER_ID,
       label: PROVIDER_LABEL,
       defaultMaxUses: DEFAULT_MAX_USES,
+      defaultMaxConsecutiveFailures: DEFAULT_MAX_CONSECUTIVE_FAILURES,
       parsePoolText,
       normalizePool: (value) => normalizePool(value),
       normalizePoolEntry: (entry, options) => normalizePoolEntry(entry, options),
@@ -378,6 +405,7 @@
       buildActivationId,
       extractVerificationCode,
       markUseSucceeded,
+      markUseFailed,
       applyPoolUpdate,
       requestActivation: (state, options) => requestActivation(state, options, providerDeps),
       pollActivationCode: (state, activation, options) => pollActivationCode(state, activation, options, providerDeps),
@@ -392,6 +420,7 @@
     PROVIDER_ID,
     PROVIDER_LABEL,
     DEFAULT_MAX_USES,
+    DEFAULT_MAX_CONSECUTIVE_FAILURES,
     parsePoolText,
     normalizePool,
     normalizePoolEntry,
@@ -400,6 +429,7 @@
     buildActivationId,
     extractVerificationCode,
     markUseSucceeded,
+    markUseFailed,
     applyPoolUpdate,
     createProvider,
   };

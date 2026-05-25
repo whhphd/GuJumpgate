@@ -124,3 +124,40 @@ test('markUseSucceeded increments and clamps to maxUses', () => {
   const stillCapped = ooeaoModule.markUseSucceeded(next);
   assert.equal(stillCapped.successfulUses, 3);
 });
+
+test('markUseFailed counts consecutive misses and retires after threshold', () => {
+  let entry = ooeaoModule.normalizePoolEntry({
+    phoneNumber: '+14129562571',
+    verificationUrl: 'https://example.test/sms?key=a',
+    successfulUses: 0,
+    maxUses: 3,
+  });
+
+  entry = ooeaoModule.markUseFailed(entry);
+  assert.equal(entry.consecutiveFailures, 1);
+  assert.equal(entry.successfulUses, 0);
+  assert.equal(ooeaoModule.isAvailable(entry), true);
+
+  entry = ooeaoModule.markUseFailed(entry);
+  assert.equal(entry.consecutiveFailures, 2);
+  assert.equal(ooeaoModule.isAvailable(entry), true);
+
+  entry = ooeaoModule.markUseFailed(entry);
+  assert.equal(entry.consecutiveFailures, 3);
+  assert.equal(entry.successfulUses, 3);
+  assert.equal(ooeaoModule.isAvailable(entry), false);
+});
+
+test('markUseSucceeded clears consecutive failures', () => {
+  let entry = ooeaoModule.normalizePoolEntry({
+    phoneNumber: '+14129562571',
+    verificationUrl: 'https://example.test/sms?key=a',
+    successfulUses: 0,
+    consecutiveFailures: 2,
+    maxUses: 3,
+  });
+
+  entry = ooeaoModule.markUseSucceeded(entry);
+  assert.equal(entry.consecutiveFailures, 0);
+  assert.equal(entry.successfulUses, 1);
+});
