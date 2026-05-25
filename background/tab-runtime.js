@@ -164,6 +164,26 @@
       return tabWindowId === null || tabWindowId === windowId;
     }
 
+    const RECOVERABLE_NAVIGATION_ERROR_CODES = new Set([
+      'NET::ERR_EMPTY_RESPONSE',
+      'NET::ERR_TIMED_OUT',
+      'NET::ERR_CONNECTION_RESET',
+      'NET::ERR_PROXY_CONNECTION_FAILED',
+    ]);
+    const RECOVERABLE_NAVIGATION_RETRY_DELAYS_MS = [1500, 3000, 5000];
+
+    function isChromeErrorPageUrl(url = '') {
+      return String(url || '').startsWith('chrome-error://');
+    }
+
+    function normalizeNavigationErrorCode(value = '') {
+      return String(value || '').trim().toUpperCase();
+    }
+
+    function isRecoverableNavigationErrorCode(value = '') {
+      return RECOVERABLE_NAVIGATION_ERROR_CODES.has(normalizeNavigationErrorCode(value));
+    }
+
     async function sleepOrStop(ms) {
       if (typeof sleepWithStop === 'function') {
         await sleepWithStop(ms);
@@ -222,6 +242,105 @@
 
         pollStop();
       });
+    }
+
+    function waitForRecoverableNavigationAttempt(tabId, timeoutMs = 30000) {
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        let stopTimer = null;
+        let lastErrorCode = '';
+
+        const cleanup = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          clearTimeout(stopTimer);
+          chrome.tabs.onUpdated.removeListener(updatedListener);
+          if (chrome.webNavigation?.onErrorOccurred?.removeListener) {
+            chrome.webNavigation.onErrorOccurred.removeListener(errorListener);
+          }
+        };
+
+        const resolveSafely = (result) => {
+          cleanup();
+          resolve(result);
+        };
+
+        const rejectSafely = (error) => {
+          cleanup();
+          reject(error);
+        };
+
+        const updatedListener = async (updatedTabId, info, tab) => {
+          if (updatedTabId !== tabId || info.status !== 'complete') {
+            return;
+          }
+          resolveSafely({ errorCode: lastErrorCode, tab });
+        };
+
+        const errorListener = (details) => {
+          if (details?.tabId !== tabId || details?.frameId !== 0) {
+            return;
+          }
+          const errorCode = normalizeNavigationErrorCode(details.error);
+          if (isRecoverableNavigationErrorCode(errorCode)) {
+            lastErrorCode = errorCode;
+            resolveSafely({ errorCode, tab: null });
+          }
+        };
+
+        const timer = setTimeout(() => resolveSafely({ errorCode: lastErrorCode, tab: null }), timeoutMs);
+        chrome.tabs.onUpdated.addListener(updatedListener);
+        if (chrome.webNavigation?.onErrorOccurred?.addListener) {
+          chrome.webNavigation.onErrorOccurred.addListener(errorListener);
+        }
+
+        const pollStop = () => {
+          if (settled) return;
+          try {
+            throwIfStopped();
+          } catch (error) {
+            rejectSafely(error);
+            return;
+          }
+          stopTimer = setTimeout(pollStop, 100);
+        };
+
+        pollStop();
+      });
+    }
+
+    async function waitForRecoverableNavigationComplete(source, tabId, options = {}) {
+      const {
+        timeoutMs = 30000,
+        maxRetries = RECOVERABLE_NAVIGATION_RETRY_DELAYS_MS.length,
+      } = options;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+        const result = await waitForRecoverableNavigationAttempt(tabId, timeoutMs);
+        const tab = result?.tab || await chrome.tabs.get(tabId).catch(() => null);
+        const errorCode = result?.errorCode || '';
+        const landedOnChromeError = isChromeErrorPageUrl(tab?.url);
+        if (!errorCode && !landedOnChromeError) {
+          return tab;
+        }
+
+        if (attempt >= maxRetries) {
+          const reason = errorCode || 'chrome-error-page';
+          throw new Error(`${getSourceLabel(source)} 页面打开失败：${reason}，已自动刷新 ${maxRetries} 次仍未恢复。`);
+        }
+
+        const delayMs = RECOVERABLE_NAVIGATION_RETRY_DELAYS_MS[Math.min(attempt, RECOVERABLE_NAVIGATION_RETRY_DELAYS_MS.length - 1)];
+        const reason = errorCode || 'chrome-error-page';
+        await addLog(
+          `${getSourceLabel(source)} 页面打开遇到可恢复网络错误（${reason}），${Math.round(delayMs / 1000)} 秒后自动刷新重试（${attempt + 1}/${maxRetries}）。`,
+          'warn'
+        );
+        await sleepOrStop(delayMs);
+        await chrome.tabs.reload(tabId, { bypassCache: true });
+      }
+
+      return chrome.tabs.get(tabId).catch(() => null);
     }
 
     async function getTabRegistry() {
@@ -720,9 +839,9 @@
       if (options.forceNew) {
         await closeConflictingTabsForSource(source, url);
         const tab = await createAutomationTab({ url, active: true }, options);
+        await waitForRecoverableNavigationComplete(source, tab.id);
 
         if (options.inject) {
-          await waitForTabUpdateComplete(tab.id);
           if (options.injectSource) {
             await chrome.scripting.executeScript({
               target: { tabId: tab.id },
@@ -762,8 +881,8 @@
               });
             }
             await setState({ tabRegistry: registry });
-            await chrome.tabs.reload(tabId);
-            await waitForTabUpdateComplete(tabId);
+            await chrome.tabs.reload(tabId, { bypassCache: true });
+            await waitForRecoverableNavigationComplete(source, tabId);
           }
 
           if (options.inject) {
@@ -803,7 +922,7 @@
         await setState({ tabRegistry: registry });
         await chrome.tabs.update(tabId, { url, active: true });
 
-        await waitForTabUpdateComplete(tabId);
+        await waitForRecoverableNavigationComplete(source, tabId);
 
         if (options.inject) {
           if (options.injectSource) {
@@ -828,9 +947,9 @@
 
       await closeConflictingTabsForSource(source, url);
       const tab = await createAutomationTab({ url, active: true }, options);
+      await waitForRecoverableNavigationComplete(source, tab.id);
 
       if (options.inject) {
-        await waitForTabUpdateComplete(tab.id);
         if (options.injectSource) {
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },

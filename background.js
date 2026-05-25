@@ -4684,9 +4684,15 @@ async function setHotmailAliasUsageEntry(account = {}, aliasEmail = '', updates 
 }
 
 async function checkOutlookAliasSubscriptionUsage(account = {}, aliasEmail = '') {
+  const startedAt = Date.now();
+  await addLog(`Hotmail/Outlook：开始预检查别名 ${aliasEmail} 的 INBOX 订阅邮件。`, 'info');
   try {
     const result = await fetchHotmailMailboxMessages(account, ['INBOX']);
     const messages = Array.isArray(result?.messages) ? result.messages : [];
+    await addLog(
+      `Hotmail/Outlook：别名 ${aliasEmail} INBOX 读取完成，用时 ${Date.now() - startedAt}ms，邮件 ${messages.length} 封。`,
+      'info'
+    );
     const match = findSubscriptionMessageForAlias(messages, aliasEmail);
     if (match.matched) {
       await setHotmailAliasUsageEntry(account, aliasEmail, {
@@ -4699,10 +4705,12 @@ async function checkOutlookAliasSubscriptionUsage(account = {}, aliasEmail = '')
     }
     if (match.missingRecipients) {
       await addLog(`Hotmail/Outlook：检测到 Plus 订阅邮件，但邮件数据没有收件人字段，未将别名 ${aliasEmail} 标记为已用。`, 'warn');
+    } else {
+      await addLog(`Hotmail/Outlook：别名 ${aliasEmail} 未发现 Plus 订阅邮件，预检通过。`, 'info');
     }
     return { used: false, checked: true, missingRecipients: Boolean(match.missingRecipients) };
   } catch (error) {
-    await addLog(`Hotmail/Outlook：预检查别名 ${aliasEmail} 收件箱失败：${error?.message || error}，将继续尝试使用该别名。`, 'warn');
+    await addLog(`Hotmail/Outlook：预检查别名 ${aliasEmail} 收件箱失败，用时 ${Date.now() - startedAt}ms：${error?.message || error}，将继续尝试使用该别名。`, 'warn');
     return { used: false, checked: false, error };
   }
 }
@@ -4711,6 +4719,7 @@ async function ensureOutlookAliasForHotmailAccount(account = {}, options = {}) {
   const state = await getState();
   if (!Boolean(state?.hotmailAliasEnabled)) {
     const baseEmail = String(account?.email || '').trim();
+    await addLog(`Hotmail/Outlook：alias 未启用，直接使用基邮箱 ${baseEmail || account?.id || '未知账号'}。`, 'info');
     await setEmailState(baseEmail || null, { source: 'hotmail-base-email' });
     return baseEmail;
   }
@@ -4720,6 +4729,7 @@ async function ensureOutlookAliasForHotmailAccount(account = {}, options = {}) {
     && isOutlookPlusAliasForAccount(currentEmail, account)
     && (options?.allowUsedCurrent || !isHotmailAliasUsed(state.hotmailAliasUsage, account, currentEmail))
   ) {
+    await addLog(`Hotmail/Outlook：沿用当前可用别名 ${currentEmail}。`, 'info');
     return currentEmail;
   }
 
@@ -4742,6 +4752,10 @@ async function ensureOutlookAliasForHotmailAccount(account = {}, options = {}) {
     .map((entry) => normalizeEmailAddressForMatch(entry.email))
     .filter(Boolean);
   const existingAliasSet = new Set(existingAliases);
+  await addLog(
+    `Hotmail/Outlook：账号 ${account.email || account.id} 开始准备 alias（上限 ${maxAliases}，已记录 ${existingAliasSet.size} 个，可复用 ${reusableAliases.length} 个）。`,
+    'info'
+  );
   for (let index = 1; index <= maxAliases; index += 1) {
     if (existingAliasSet.size + generatedCandidates.length >= maxAliases) {
       break;
@@ -4753,11 +4767,17 @@ async function ensureOutlookAliasForHotmailAccount(account = {}, options = {}) {
     }
     generatedCandidates.push(candidate);
   }
+  await addLog(
+    `Hotmail/Outlook：账号 ${account.email || account.id} alias 候选准备完成（复用 ${reusableAliases.length} 个，新生成 ${generatedCandidates.length} 个）。`,
+    'info'
+  );
 
   for (const aliasEmail of [...reusableAliases, ...generatedCandidates]) {
+    await addLog(`Hotmail/Outlook：正在检查候选别名 ${aliasEmail}。`, 'info');
     const precheck = await checkOutlookAliasSubscriptionUsage(account, aliasEmail);
     if (precheck.used) {
       latestUsage = normalizeHotmailAliasUsage((await getState()).hotmailAliasUsage);
+      await addLog(`Hotmail/Outlook：候选别名 ${aliasEmail} 已用，继续检查下一个。`, 'warn');
       continue;
     }
     await setHotmailAliasUsageEntry(account, aliasEmail, {
@@ -4766,6 +4786,7 @@ async function ensureOutlookAliasForHotmailAccount(account = {}, options = {}) {
       reason: precheck.checked ? 'allocated' : 'allocated_precheck_failed',
     });
     await setEmailState(aliasEmail, { source: 'generated:outlook-alias' });
+    await addLog(`Hotmail/Outlook：已选择注册别名 ${aliasEmail}（预检 ${precheck.checked ? '成功' : '失败后继续'}）。`, 'ok');
     return aliasEmail;
   }
 
@@ -4984,10 +5005,15 @@ async function ensureHotmailAccountForFlow(options = {}) {
     excludeIds = [],
     allowUsedCurrent = false,
   } = options;
+  const prepareStartedAt = Date.now();
   const state = await getState();
   const accounts = normalizeHotmailAccounts(state.hotmailAccounts);
   const excludedAccountIds = new Set((excludeIds || []).filter(Boolean));
   const hotmailAliasEnabled = Boolean(state?.hotmailAliasEnabled);
+  await addLog(
+    `Hotmail/Outlook：开始准备注册邮箱（账号总数 ${accounts.length}，排除 ${excludedAccountIds.size} 个，alias ${hotmailAliasEnabled ? '已启用' : '未启用'}）。`,
+    'info'
+  );
   const isAliasCapacityExhausted = (candidate, sourceState = state) => (
     hotmailAliasEnabled && typeof isHotmailAliasCapacityExhausted === 'function'
       ? isHotmailAliasCapacityExhausted(candidate, sourceState)
@@ -4998,6 +5024,10 @@ async function ensureHotmailAccountForFlow(options = {}) {
     && !excludedAccountIds.has(candidate.id)
     && !isAliasCapacityExhausted(candidate, state)
   ));
+  await addLog(
+    `Hotmail/Outlook：当前可直接分配账号 ${availableAccounts.length} 个${preferredAccountId ? `，优先账号 ${preferredAccountId}` : ''}。`,
+    'info'
+  );
   const isReusableAuthorizedHotmailAccount = (account) => Boolean(account)
     && ['authorized', 'pending'].includes(account.status)
     && Boolean(account.refreshToken);
@@ -5028,6 +5058,7 @@ async function ensureHotmailAccountForFlow(options = {}) {
     if (!candidate) {
       continue;
     }
+    await addLog(`Hotmail/Outlook：正在尝试账号 ${candidate.email || candidate.id}。`, 'info');
     if (!isAuthorizedHotmailRunAccount(candidate) && !(allowUsedCurrent && isReusableAuthorizedHotmailAccount(candidate))) {
       lastAllocationError = new Error(`Hotmail 账号 ${candidate.email || candidate.id} 尚未就绪，无法读取邮件。`);
       continue;
@@ -5037,10 +5068,21 @@ async function ensureHotmailAccountForFlow(options = {}) {
       continue;
     }
     try {
+      await addLog(`Hotmail/Outlook：正在切换当前账号为 ${candidate.email || candidate.id}。`, 'info');
+      const switchStartedAt = Date.now();
       const selectedAccount = await setCurrentHotmailAccount(candidate.id, { markUsed, syncEmail: false });
+      await addLog(
+        `Hotmail/Outlook：已切换账号 ${selectedAccount.email || selectedAccount.id}，用时 ${Date.now() - switchStartedAt}ms，开始准备注册别名。`,
+        'info'
+      );
+      const aliasStartedAt = Date.now();
       const aliasEmail = typeof ensureOutlookAliasForHotmailAccount === 'function'
         ? await ensureOutlookAliasForHotmailAccount(selectedAccount, options)
         : selectedAccount.email;
+      await addLog(
+        `Hotmail/Outlook：账号 ${selectedAccount.email || selectedAccount.id} 已准备注册邮箱 ${hotmailAliasEnabled ? aliasEmail : selectedAccount.email}，alias 阶段用时 ${Date.now() - aliasStartedAt}ms，总用时 ${Date.now() - prepareStartedAt}ms。`,
+        'ok'
+      );
       return {
         ...selectedAccount,
         registrationAliasEmail: hotmailAliasEnabled ? aliasEmail : selectedAccount.email,
