@@ -2292,6 +2292,22 @@ header {
   gap: 6px;
 }
 
+.ooeao-pool-stack {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.ooeao-pool-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .hero-sms-country-mainline {
   width: 100%;
   display: flex;
