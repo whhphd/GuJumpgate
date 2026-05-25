@@ -572,6 +572,7 @@ const HOSTED_CHECKOUT_VERIFICATION_POPUP_DELAY_MIN_SECONDS = 0;
 const HOSTED_CHECKOUT_VERIFICATION_POPUP_DELAY_MAX_SECONDS = 60;
 const OUTLOOK_ALIAS_DEFAULT_MAX_PER_ACCOUNT = 5;
 const OUTLOOK_ALIAS_MAX_PER_ACCOUNT_LIMIT = 50;
+const OUTLOOK_ALIAS_PRECHECK_TIMEOUT_MS = 30000;
 const OUTLOOK_SUBSCRIPTION_USED_KEYWORD = 'ChatGPT Plus Subscription';
 const VERIFICATION_RESEND_COUNT_MIN = 0;
 const VERIFICATION_RESEND_COUNT_MAX = 20;
@@ -4687,7 +4688,11 @@ async function checkOutlookAliasSubscriptionUsage(account = {}, aliasEmail = '')
   const startedAt = Date.now();
   await addLog(`Hotmail/Outlook：开始预检查别名 ${aliasEmail} 的 INBOX 订阅邮件。`, 'info');
   try {
-    const result = await fetchHotmailMailboxMessages(account, ['INBOX']);
+    const result = await fetchHotmailMailboxMessages(account, ['INBOX'], {
+      timeoutMs: OUTLOOK_ALIAS_PRECHECK_TIMEOUT_MS,
+      maxAttempts: 1,
+      top: 5,
+    });
     const messages = Array.isArray(result?.messages) ? result.messages : [];
     await addLog(
       `Hotmail/Outlook：别名 ${aliasEmail} INBOX 读取完成，用时 ${Date.now() - startedAt}ms，邮件 ${messages.length} 封。`,
@@ -5112,7 +5117,7 @@ function buildHotmailLocalEndpoint(baseUrl, path) {
   return new URL(path, `${normalizedBaseUrl}/`).toString();
 }
 
-async function requestHotmailRemoteMailbox(account, mailbox = 'INBOX') {
+async function requestHotmailRemoteMailbox(account, mailbox = 'INBOX', options = {}) {
   if (!account?.email) {
     throw new Error('Hotmail 账号缺少邮箱地址。');
   }
@@ -5123,7 +5128,9 @@ async function requestHotmailRemoteMailbox(account, mailbox = 'INBOX') {
     throw new Error(`Hotmail 账号 ${account.email || account.id} 缺少刷新令牌（refresh token）。`);
   }
 
-  const { timeoutMs } = getHotmailMailApiRequestConfig();
+  const { timeoutMs: defaultTimeoutMs } = getHotmailMailApiRequestConfig();
+  const timeoutMs = Math.max(1000, Number(options.timeoutMs) || defaultTimeoutMs);
+  const top = Math.max(1, Number(options.top) || 10);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), timeoutMs);
 
@@ -5132,7 +5139,7 @@ async function requestHotmailRemoteMailbox(account, mailbox = 'INBOX') {
       clientId: account.clientId,
       refreshToken: account.refreshToken,
       mailbox,
-      top: 10,
+      top,
       signal: controller.signal,
     });
 
@@ -5191,13 +5198,13 @@ async function markHotmailAccountMailAccessFailed(account, errorMessage) {
   });
 }
 
-async function fetchHotmailMailboxMessagesFromRemoteService(account, mailboxes = HOTMAIL_MAILBOXES) {
+async function fetchHotmailMailboxMessagesFromRemoteService(account, mailboxes = HOTMAIL_MAILBOXES, options = {}) {
   let workingAccount = normalizeHotmailAccount(account);
   const mailboxResults = [];
 
   try {
     for (const mailbox of mailboxes) {
-      const result = await requestHotmailRemoteMailbox(workingAccount, mailbox);
+      const result = await requestHotmailRemoteMailbox(workingAccount, mailbox, options);
       workingAccount = applyHotmailApiResultToAccount(workingAccount, result);
       mailboxResults.push({
         mailbox,
@@ -5225,7 +5232,7 @@ async function fetchHotmailMailboxMessagesFromRemoteService(account, mailboxes =
 async function requestHotmailLocalHelperJson(path, bodyPayload, options = {}) {
   const serviceSettings = getHotmailServiceSettings(await getState());
   const { timeoutMs } = getHotmailMailApiRequestConfig();
-  const requestTimeoutMs = Math.max(timeoutMs, HOTMAIL_LOCAL_HELPER_TIMEOUT_MS);
+  const requestTimeoutMs = Math.max(1000, Number(options.timeoutMs) || Math.max(timeoutMs, HOTMAIL_LOCAL_HELPER_TIMEOUT_MS));
   const endpoint = buildHotmailLocalEndpoint(serviceSettings.localBaseUrl, path);
   const maxAttempts = Math.max(1, Number(options.maxAttempts) || HOTMAIL_LOCAL_HELPER_MAX_ATTEMPTS);
   let lastError = null;
@@ -5284,7 +5291,7 @@ async function requestHotmailLocalHelperJson(path, bodyPayload, options = {}) {
   throw lastError || new Error('Hotmail 本地助手请求失败。');
 }
 
-async function requestHotmailLocalMessages(account, mailboxes = HOTMAIL_MAILBOXES) {
+async function requestHotmailLocalMessages(account, mailboxes = HOTMAIL_MAILBOXES, options = {}) {
   if (!account?.email) {
     throw new Error('Hotmail 账号缺少邮箱地址。');
   }
@@ -5300,8 +5307,8 @@ async function requestHotmailLocalMessages(account, mailboxes = HOTMAIL_MAILBOXE
     clientId: account.clientId,
     refreshToken: account.refreshToken,
     mailboxes,
-    top: 5,
-  });
+    top: Math.max(1, Number(options.top) || 5),
+  }, options);
 
   const rawMessages = Array.isArray(payload?.messages) ? payload.messages : [];
   const normalizedMessages = normalizeHotmailMailApiMessages(rawMessages).map((message, index) => ({
@@ -5423,12 +5430,12 @@ async function pollHotmailVerificationCodeViaLocalHelper(step, account, pollPayl
   throw new Error(`HOTMAIL_MAIL_ACCESS_RETRY::${finalError.message}`);
 }
 
-async function fetchHotmailMailboxMessages(account, mailboxes = HOTMAIL_MAILBOXES) {
+async function fetchHotmailMailboxMessages(account, mailboxes = HOTMAIL_MAILBOXES, options = {}) {
   const serviceSettings = getHotmailServiceSettings(await getState());
   if (serviceSettings.mode === HOTMAIL_SERVICE_MODE_LOCAL) {
-    return requestHotmailLocalMessages(account, mailboxes);
+    return requestHotmailLocalMessages(account, mailboxes, options);
   }
-  return fetchHotmailMailboxMessagesFromRemoteService(account, mailboxes);
+  return fetchHotmailMailboxMessagesFromRemoteService(account, mailboxes, options);
 }
 
 async function verifyHotmailAccount(accountId) {
