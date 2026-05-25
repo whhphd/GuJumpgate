@@ -205,8 +205,9 @@
 
     return [
       ...commonStart,
-      { id: id + 2, order: order + 20, key: 'confirm-oauth', title: '自动确认 OAuth', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'confirm-oauth' },
-      { id: id + 3, order: order + 30, key: 'platform-verify', title: '平台回调验证', sourceId: 'platform-panel', driverId: 'content/platform-panel', command: 'platform-verify' },
+      { id: id + 2, order: order + 20, key: 'post-login-phone-verification', title: '手机号验证', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'post-login-phone-verification' },
+      { id: id + 3, order: order + 30, key: 'confirm-oauth', title: '自动确认 OAuth', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'confirm-oauth' },
+      { id: id + 4, order: order + 40, key: 'platform-verify', title: '平台回调验证', sourceId: 'platform-panel', driverId: 'content/platform-panel', command: 'platform-verify' },
     ];
   }
 
