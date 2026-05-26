@@ -614,6 +614,47 @@
     return state.currentEntry;
   }
 
+  async function restoreCardKeyContext(entry) {
+    updateEntry(entry.id, { status: 'running', error: '' });
+    state.currentId = entry.id;
+    state.currentEntry = entry;
+    await saveState();
+    render();
+    const result = await executeOnCardSiteWithPageRefresh('restoreContext', [{
+      cardKey: entry.cardKey,
+      email: entry.email,
+      mailSecret: entry.mailSecret,
+    }], {
+      maxPageAttempts: 0,
+      requireRunning: true,
+    });
+    const restoredEmail = normalizeString(result.email);
+    const expectedEmail = normalizeString(entry.email);
+    if (!restoredEmail) {
+      throw new Error('卡密已重新提交，但未恢复邮箱上下文。');
+    }
+    if (expectedEmail && restoredEmail.toLowerCase() !== expectedEmail.toLowerCase()) {
+      throw new Error(`卡密站恢复出的邮箱与队列不一致：${restoredEmail} ≠ ${entry.email}`);
+    }
+    const restoredSecret = normalizeString(result.mailSecret || entry.mailSecret);
+    updateEntry(entry.id, {
+      email: restoredEmail,
+      mailSecret: restoredSecret,
+      status: 'exchanged',
+      error: '',
+    });
+    state.currentEntry = {
+      ...entry,
+      email: restoredEmail,
+      mailSecret: restoredSecret,
+      status: 'exchanged',
+      error: '',
+    };
+    await saveState();
+    render();
+    return state.currentEntry;
+  }
+
   function getPlusWorkflowFailureFromState(flowState = {}) {
     const summaries = Array.isArray(flowState?.autoRunRoundSummaries) ? flowState.autoRunRoundSummaries : [];
     const failedSummary = summaries.find((summary) => String(summary?.status || '') === 'failed');
@@ -768,7 +809,7 @@
         let activeEntry = entry;
         let shouldRemoveEntry = true;
         try {
-          const exchanged = entry.email ? entry : await exchangeCardKey(entry);
+          const exchanged = entry.email ? await restoreCardKeyContext(entry) : await exchangeCardKey(entry);
           activeEntry = exchanged;
           throwIfAutoStopped();
           updateEntry(entry.id, { status: 'running', error: '' });
@@ -1086,8 +1127,10 @@
       throw new Error(errorMessage);
     }
 
-    async function exchange(cardKey) {
-      const options = (args && typeof args[1] === 'object' && args[1]) || {};
+    async function exchange(cardKey, overrideOptions = null) {
+      const options = (overrideOptions && typeof overrideOptions === 'object')
+        ? overrideOptions
+        : ((args && typeof args[1] === 'object' && args[1]) || {});
       const maxAttempts = Math.max(1, Math.floor(Number(options.maxAttempts) || 5));
       const settleMs = Math.max(0, Math.floor(Number(options.settleMs) || 1200));
       const clickTimeoutMs = Math.max(1000, Math.floor(Number(options.clickTimeoutMs) || 6000));
@@ -1139,6 +1182,31 @@
       throw lastError || new Error('卡密取码站换出失败。');
     }
 
+    async function restoreContext(payload = {}) {
+      const cardKey = normalize(payload?.cardKey || '');
+      const expectedEmail = normalize(payload?.email || '');
+      const expectedSecret = normalize(payload?.mailSecret || '');
+      const options = payload?.options && typeof payload.options === 'object' ? payload.options : {};
+      if (!cardKey) throw new Error('恢复卡密上下文缺少卡密。');
+      if (!expectedEmail) throw new Error('恢复卡密上下文缺少邮箱。');
+      const result = await exchange(cardKey, options);
+      const restoredEmail = normalize(result?.email || '');
+      if (!restoredEmail) {
+        throw new Error('卡密已重新提交，但未恢复邮箱上下文。');
+      }
+      if (restoredEmail.toLowerCase() !== expectedEmail.toLowerCase()) {
+        throw new Error(`卡密站恢复出的邮箱与队列不一致：${restoredEmail} ≠ ${expectedEmail}`);
+      }
+      const restoredSecret = normalize(result?.mailSecret || expectedSecret);
+      if (expectedSecret && restoredSecret && restoredSecret !== expectedSecret) {
+        throw new Error('卡密站恢复出的邮箱秘钥与队列不一致。');
+      }
+      return {
+        email: restoredEmail,
+        mailSecret: restoredSecret,
+      };
+    }
+
     async function fetchCode() {
       const options = (args && typeof args[0] === 'object' && args[0]) || {};
       const maxAttempts = Math.max(1, Math.floor(Number(options.maxAttempts) || 5));
@@ -1179,6 +1247,7 @@
     return Promise.resolve()
       .then(() => {
         if (functionName === 'exchange') return exchange(args[0]);
+        if (functionName === 'restoreContext') return restoreContext(args[0] || {});
         if (functionName === 'fetchCode') return fetchCode();
         throw new Error(`未知 Plus 卡密页面动作：${functionName}`);
       })

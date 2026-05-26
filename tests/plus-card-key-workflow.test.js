@@ -251,6 +251,74 @@ test('plus card exchange retries clicks when card site reports failed fetch', as
   }
 });
 
+test('plus card context restore submits existing card before OAuth retry', async () => {
+  const originalDocument = globalThis.document;
+  const originalGetComputedStyle = globalThis.getComputedStyle;
+  const originalInputElement = globalThis.HTMLInputElement;
+  const originalTextareaElement = globalThis.HTMLTextAreaElement;
+  const originalEvent = globalThis.Event;
+
+  let clickCount = 0;
+  const cardField = createFieldStub({ label: '卡密换邮箱秘钥', value: '' });
+  const emailField = createFieldStub({ label: '邮箱', value: '' });
+  const secretField = createFieldStub({ label: '邮箱秘钥', value: '' });
+  const exchangeButton = {
+    innerText: '换出邮箱秘钥',
+    getBoundingClientRect() {
+      return { width: 100, height: 24 };
+    },
+    click() {
+      clickCount += 1;
+      assert.equal(cardField.value, 'U939-SJ5U-TW5M');
+      emailField.value = 'pukka.15montane+82o@icloud.com';
+      secretField.value = '22DECC1918DE3087';
+    },
+  };
+
+  try {
+    globalThis.HTMLInputElement = function HTMLInputElement() {};
+    globalThis.HTMLTextAreaElement = function HTMLTextAreaElement() {};
+    globalThis.Event = function Event(type) {
+      this.type = type;
+    };
+    globalThis.getComputedStyle = () => ({ visibility: 'visible', display: 'block' });
+    globalThis.document = {
+      body: {
+        innerText: '',
+      },
+      querySelectorAll(selector) {
+        if (/^button/.test(selector)) return [exchangeButton];
+        return [cardField, emailField, secretField];
+      },
+    };
+
+    const result = await globalThis.PlusCardKeyWorkflow._test.cardSiteInjectedRunner('restoreContext', [{
+      cardKey: 'U939-SJ5U-TW5M',
+      email: 'pukka.15montane+82o@icloud.com',
+      mailSecret: '22DECC1918DE3087',
+      options: {
+        maxAttempts: 1,
+        settleMs: 1,
+        clickTimeoutMs: 5,
+        retryDelayMs: 1,
+        pollMs: 1,
+      },
+    }]);
+
+    assert.equal(clickCount, 1);
+    assert.deepEqual(result, {
+      email: 'pukka.15montane+82o@icloud.com',
+      mailSecret: '22DECC1918DE3087',
+    });
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.getComputedStyle = originalGetComputedStyle;
+    globalThis.HTMLInputElement = originalInputElement;
+    globalThis.HTMLTextAreaElement = originalTextareaElement;
+    globalThis.Event = originalEvent;
+  }
+});
+
 test('plus card exchange does not retry confirmed invalid card errors', async () => {
   const originalDocument = globalThis.document;
   const originalGetComputedStyle = globalThis.getComputedStyle;
