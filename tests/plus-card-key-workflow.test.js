@@ -21,6 +21,10 @@ require('../sidepanel/plus-card-key-workflow.js');
 require('../background/sub2api-api.js');
 
 const classifyFailure = globalThis.PlusCardKeyWorkflow.classifyFailure;
+const {
+  getNextRunnableEntryFromEntries,
+  getRetryStatusForSelectedEntry,
+} = globalThis.PlusCardKeyWorkflow._test;
 
 function createFieldStub({
   value = '',
@@ -56,7 +60,6 @@ test('plus card key transient failures preserve current entry and pause queue', 
     '等待后台 Plus 卡密工作流完成超时。',
     'Plus 卡密取码站邮箱取码超时，未识别到验证码。',
     'TypeError: Failed to fetch',
-    'SUB2API 请求失败：/api/v1/admin/openai/exchange-code。请检查 SUB2API 地址、网络、代理或服务状态。原始错误：Failed to fetch',
   ]) {
     assert.deepEqual(classifyFailure(message), {
       removeEntry: false,
@@ -65,6 +68,29 @@ test('plus card key transient failures preserve current entry and pause queue', 
       reason: 'transient',
     });
   }
+});
+
+test('plus card key SUB2API transient import failures are deferred without stopping queue', () => {
+  assert.deepEqual(
+    classifyFailure('SUB2API 请求失败：/api/v1/admin/openai/exchange-code。请检查 SUB2API 地址、网络、代理或服务状态。原始错误：Failed to fetch'),
+    {
+      removeEntry: false,
+      stopQueue: false,
+      status: 'import_pending',
+      reason: 'sub2api_transient',
+    }
+  );
+});
+
+test('plus card key import pending entries are skipped by auto queue until selected for retry', () => {
+  const entries = [
+    { id: 'card-1', status: 'import_pending', email: 'done@example.com' },
+    { id: 'card-2', status: 'pending', email: '' },
+  ];
+
+  assert.equal(getNextRunnableEntryFromEntries(entries, 'card-1')?.id, 'card-2');
+  assert.equal(getRetryStatusForSelectedEntry(entries[0]), 'exchanged');
+  assert.equal(getRetryStatusForSelectedEntry({ id: 'card-3', status: 'pending' }), null);
 });
 
 test('plus card key confirmed business failures remove current entry', () => {

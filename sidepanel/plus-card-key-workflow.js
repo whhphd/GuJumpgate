@@ -28,6 +28,7 @@
   let busy = false;
   let autoRunLoopActive = false;
   let waitingBackgroundFlow = null;
+  const AUTO_SKIP_STATUSES = new Set(['code_received', 'skipped', 'import_pending']);
 
   function $(id) {
     return document.getElementById(id);
@@ -117,6 +118,22 @@
     return state.entries.find((entry) => entry.id === state.currentId) || state.entries[0] || null;
   }
 
+  function getNextRunnableEntryFromEntries(entries = [], currentId = '') {
+    const list = Array.isArray(entries) ? entries : [];
+    const current = list.find((entry) => entry?.id === currentId);
+    if (current && !AUTO_SKIP_STATUSES.has(current.status)) return current;
+    return list.find((entry) => entry && !AUTO_SKIP_STATUSES.has(entry.status)) || null;
+  }
+
+  function getRetryStatusForSelectedEntry(entry = {}) {
+    if (entry?.status !== 'import_pending') return null;
+    return entry.email ? 'exchanged' : 'pending';
+  }
+
+  function getNextRunnableEntry() {
+    return getNextRunnableEntryFromEntries(state.entries, state.currentId);
+  }
+
   async function saveState() {
     await chrome.storage.local.set({ [STORAGE_KEY]: state });
   }
@@ -153,6 +170,7 @@
       case 'running': return '自动处理中';
       case 'failed': return '失败';
       case 'paused': return '已暂停待重试';
+      case 'import_pending': return '导入待重试';
       case 'skipped': return '已跳过';
       default: return '待处理';
     }
@@ -255,7 +273,7 @@
   }
 
   function selectNextPending() {
-    const next = state.entries.find((entry) => !['code_received', 'skipped'].includes(entry.status));
+    const next = getNextRunnableEntry();
     state.currentId = next?.id || state.entries[0]?.id || '';
   }
 
@@ -279,6 +297,20 @@
 
   function classifyPlusCardKeyFailure(errorMessage = '') {
     const message = normalizeString(errorMessage);
+    const mentionsSub2ApiImport = /SUB2API 请求(?:失败|超时)|SUB2API[\s\S]*(?:Failed to fetch|failed to fetch|network\s*error|fetch\s+failed|load\s+failed|timeout|超时)|\/api\/v1\/(?:auth|admin)\//i.test(message);
+    const hasTransientImportSignal = /Failed to fetch|failed to fetch|network\s*error|fetch\s+failed|load\s+failed|timeout|timed\s*out|超时|connection\s+refused|connection\s+reset|unexpected\s+eof|temporarily\s+unavailable|502|503|504/i.test(message);
+    const isSub2ApiTransientImportFailure = mentionsSub2ApiImport
+      && hasTransientImportSignal
+      && !/SUB2API.*(?:缺少|尚未配置|未配置|登录失败|回调交换)|尚未配置 SUB2API|缺少 SUB2API|state 与步骤|目标分组 ID 无效/i.test(message);
+    if (isSub2ApiTransientImportFailure) {
+      return {
+        removeEntry: false,
+        stopQueue: false,
+        status: 'import_pending',
+        reason: 'sub2api_transient',
+      };
+    }
+
     const preservePatterns = [
       /用户停止|已停止|stop(?:ped)?|cancel(?:led)?|abort/i,
       /网络|network|failed to fetch|timeout|超时|timed out|net::|err_/i,
@@ -712,15 +744,22 @@
     autoRunLoopActive = true;
     try {
       while (state.running) {
-        const entry = getCurrentEntry();
+        const entry = getNextRunnableEntry();
         if (!entry) {
+          const pendingImports = state.entries.filter((item) => item.status === 'import_pending').length;
           state.running = false;
           state.currentEntry = null;
           await saveState();
           render();
-          showWorkflowToast('Plus 卡密队列已处理完成。', 'success');
+          showWorkflowToast(
+            pendingImports
+              ? `Plus 卡密队列暂无可继续处理项，剩余 ${pendingImports} 个待重试导入。`
+              : 'Plus 卡密队列已处理完成。',
+            pendingImports ? 'warn' : 'success'
+          );
           break;
         }
+        state.currentId = entry.id;
 
         let finalError = '';
         let activeEntry = entry;
@@ -744,15 +783,21 @@
             recordFailure(activeEntry, finalError);
             showWorkflowToast(`Plus 卡密确认失败，已从队列移除：${finalError}`, 'error', 3600);
           } else {
-            state.running = false;
-            state.currentId = entry.id;
+            state.running = !failure.stopQueue;
             state.currentEntry = null;
             state.lastError = finalError;
             updateEntry(entry.id, {
               status: failure.status || 'paused',
               error: finalError,
             });
-            showWorkflowToast(`Plus 卡密已保留并暂停，稍后可重试：${finalError}`, 'warn', 4200);
+            if (failure.stopQueue) {
+              state.currentId = entry.id;
+              showWorkflowToast(`Plus 卡密已保留并暂停，稍后可重试：${finalError}`, 'warn', 4200);
+            } else {
+              const next = state.entries.find((item) => item.id !== entry.id && !AUTO_SKIP_STATUSES.has(item.status));
+              state.currentId = next?.id || entry.id;
+              showWorkflowToast(`SUB2API 导入临时失败，已保留当前卡密并继续下一个：${finalError}`, 'warn', 4200);
+            }
           }
         } finally {
           if (shouldRemoveEntry) {
@@ -870,6 +915,10 @@
       const action = button.dataset.action;
       if (action === 'select') {
         state.currentId = entry.id;
+        const retryStatus = getRetryStatusForSelectedEntry(entry);
+        if (retryStatus) {
+          updateEntry(entry.id, { status: retryStatus, error: '' });
+        }
       } else if (action === 'skip') {
         updateEntry(entry.id, { status: 'skipped', error: '' });
         selectNextPending();
@@ -1154,6 +1203,8 @@
     classifyFailure: classifyPlusCardKeyFailure,
     _test: {
       cardSiteInjectedRunner,
+      getNextRunnableEntryFromEntries,
+      getRetryStatusForSelectedEntry,
     },
   };
 })(typeof window !== 'undefined' ? window : globalThis);

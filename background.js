@@ -11136,6 +11136,7 @@ const STEP_COMPLETION_SIGNAL_TIMEOUTS_BY_STEP_KEY = new Map([
   ['fill-profile', 150000],
   ['gopay-subscription-confirm', 1800000],
 ]);
+const PLUS_CARD_KEY_PLATFORM_VERIFY_SIGNAL_TIMEOUT_MS = 90000;
 const AUTO_RUN_PRE_EXECUTION_DELAYS_BY_STEP_KEY = new Map([
   ['plus-checkout-create', 5000],
 ]);
@@ -11254,6 +11255,9 @@ function getNodeCompletionSignalTimeoutMs(nodeId, state = {}) {
     return HOSTED_CHECKOUT_FINAL_WAIT_TIMEOUT_MS;
   }
   const executionKey = getNodeExecutionKeyForState(nodeId, state);
+  if (state?.plusCardKeyWorkflow && (executionKey || nodeId) === 'platform-verify') {
+    return PLUS_CARD_KEY_PLATFORM_VERIFY_SIGNAL_TIMEOUT_MS;
+  }
   return STEP_COMPLETION_SIGNAL_TIMEOUTS_BY_STEP_KEY.get(executionKey || nodeId) || AUTO_RUN_SIGNAL_COMPLETION_TIMEOUT_MS;
 }
 

@@ -208,6 +208,19 @@
       return tokenExchangeFailure && transientNetworkSignal;
     }
 
+    function isSub2ApiTransientRequestError(error) {
+      const message = normalizeString(error?.message || error);
+      if (!message) {
+        return false;
+      }
+      if (isSub2ApiTransientExchangeError(message)) {
+        return true;
+      }
+      const sub2ApiRequestFailure = /SUB2API 请求(?:失败|超时)|\/api\/v1\/(?:auth|admin)\//i.test(message);
+      const transientNetworkSignal = /failed\s+to\s+fetch|network\s*error|fetch\s+failed|load\s+failed|timeout|timed\s*out|超时|connection\s+refused|connection\s+reset|unexpected\s+eof|temporarily\s+unavailable|502|503|504|bad\s+gateway|service\s+unavailable|gateway\s+timeout/i.test(message);
+      return sub2ApiRequestFailure && transientNetworkSignal;
+    }
+
     async function sleep(ms = 0) {
       const timeout = Math.max(0, Number(ms) || 0);
       if (!timeout) return;
@@ -489,7 +502,11 @@
         throw new Error('SUB2API URL is not configured. Please fill it in the side panel first.');
       }
       const api = getSub2ApiApi();
-      const maxExchangeAttempts = 3;
+      const isPlusCardKeyWorkflow = Boolean(state?.plusCardKeyWorkflow);
+      const maxExchangeAttempts = isPlusCardKeyWorkflow ? 5 : 3;
+      const requestTimeoutMs = isPlusCardKeyWorkflow
+        ? Math.min(10000, Math.max(1000, Number(SUB2API_STEP9_RESPONSE_TIMEOUT_MS) || 10000))
+        : SUB2API_STEP9_RESPONSE_TIMEOUT_MS;
       let lastError = null;
       for (let attempt = 1; attempt <= maxExchangeAttempts; attempt += 1) {
         try {
@@ -501,21 +518,22 @@
             visibleStep,
             logLabel: `步骤 ${visibleStep}`,
             logOptions: { step: visibleStep, stepKey: 'platform-verify' },
-            timeoutMs: SUB2API_STEP9_RESPONSE_TIMEOUT_MS,
+            timeoutMs: requestTimeoutMs,
+            createTimeoutMs: requestTimeoutMs,
           });
           await completeNodeFromBackground(state?.nodeId || 'platform-verify', result);
           return;
         } catch (error) {
           lastError = error;
-          if (!isSub2ApiTransientExchangeError(error) || attempt >= maxExchangeAttempts) {
+          if (!isSub2ApiTransientRequestError(error) || attempt >= maxExchangeAttempts) {
             throw error;
           }
           await addLog(
-            `SUB2API 回调交换出现临时网络波动（${error.message}），正在重试 ${attempt + 1}/${maxExchangeAttempts}...`,
+            `SUB2API 平台回调提交出现临时网络波动（${error.message}），将复用已捕获的 localhost 回调重试 ${attempt + 1}/${maxExchangeAttempts}...`,
             'warn',
             { step: visibleStep, stepKey: 'platform-verify' }
           );
-          await sleep(1200 * attempt);
+          await sleep(Math.min(10000, 1500 * attempt));
         }
       }
       if (lastError) {
