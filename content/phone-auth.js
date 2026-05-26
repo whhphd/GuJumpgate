@@ -23,6 +23,7 @@
     const PHONE_RESEND_BANNED_NUMBER_ERROR_PREFIX = 'PHONE_RESEND_BANNED_NUMBER::';
     const PHONE_RESEND_SERVER_ERROR_PREFIX = 'PHONE_RESEND_SERVER_ERROR::';
     const PHONE_MAX_USAGE_EXCEEDED_PATTERN = /phone_max_usage_exceeded/i;
+    const PHONE_NUMBER_IN_USE_ERROR_PATTERN = /phone_number_in_use|该电话号码已被占用|phone\s+number\s+is\s+already\s+(?:in\s+use|linked|registered)|phone\s+number\s+has\s+already\s+been\s+used|already\s+associated\s+with\s+another\s+account|号码.*(?:已|被).*(?:使用|占用|绑定|注册|关联)|手机号.*(?:已|被).*(?:使用|占用|绑定|注册|关联)|电话号码.*(?:已|被).*(?:使用|占用|绑定|注册|关联)/i;
     const PHONE_ROUTE_405_RECOVERY_FAILED_ERROR_PREFIX = 'PHONE_ROUTE_405_RECOVERY_FAILED::';
     const PHONE_ROUTE_405_RECOVERY_COOLDOWN_MS = 6000;
     const PHONE_RESEND_ROUTE_405_MAX_RECOVERIES = 2;
@@ -520,6 +521,19 @@
       return messages;
     }
 
+    function getPhoneVerificationPageErrorText() {
+      const pageSnapshot = String(getPageTextSnapshot?.() || '').replace(/\s+/g, ' ').trim();
+      const title = String(document?.title || '').replace(/\s+/g, ' ').trim();
+      const combined = `${title} ${pageSnapshot}`.trim();
+      if (!combined) {
+        return '';
+      }
+      if (PHONE_NUMBER_IN_USE_ERROR_PATTERN.test(combined) || PHONE_MAX_USAGE_EXCEEDED_PATTERN.test(combined)) {
+        return combined;
+      }
+      return '';
+    }
+
     function getPhoneResendThrottleText() {
       const inlineMatch = getPhoneVerificationInlineMessages()
         .find((text) => PHONE_RESEND_THROTTLED_PATTERN.test(text));
@@ -807,7 +821,7 @@
           continue;
         }
 
-        const errorText = getVerificationErrorText();
+        const errorText = getVerificationErrorText() || getPhoneVerificationPageErrorText();
         if (errorText) {
           return {
             invalidCode: true,
@@ -834,10 +848,11 @@
         await sleep(150);
       }
 
-      if (isPhoneVerificationPageReady()) {
+      const postTimeoutErrorText = getVerificationErrorText() || getPhoneVerificationPageErrorText();
+      if (postTimeoutErrorText || isPhoneVerificationPageReady()) {
         return {
           invalidCode: true,
-          errorText: getVerificationErrorText() || 'Phone verification page stayed in place after code submission.',
+          errorText: postTimeoutErrorText || 'Phone verification page stayed in place after code submission.',
           url: location.href,
         };
       }

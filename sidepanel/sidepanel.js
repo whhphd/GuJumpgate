@@ -11529,7 +11529,7 @@ async function restoreState() {
 
     if (state.logs) {
       for (const entry of state.logs) {
-        appendLog(entry);
+        appendLog(entry, { followBottom: false });
       }
     }
 
@@ -13537,7 +13537,13 @@ function updateStatusDisplay(state) {
   }
 }
 
-function appendLog(entry) {
+function isLogAreaNearBottom(thresholdPx = 32) {
+  if (!logArea) return true;
+  return logArea.scrollHeight - logArea.scrollTop - logArea.clientHeight <= thresholdPx;
+}
+
+function appendLog(entry, options = {}) {
+  const { followBottom = isLogAreaNearBottom() } = options;
   const time = new Date(entry.timestamp).toLocaleTimeString('zh-CN', {
     hour12: false,
     timeZone: DISPLAY_TIMEZONE,
@@ -13558,7 +13564,9 @@ function appendLog(entry) {
 
   line.innerHTML = html;
   logArea.appendChild(line);
-  logArea.scrollTop = logArea.scrollHeight;
+  if (followBottom) {
+    logArea.scrollTop = logArea.scrollHeight;
+  }
 }
 
 function escapeHtml(text) {

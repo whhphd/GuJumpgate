@@ -214,7 +214,7 @@
       if (!message) {
         return false;
       }
-      const tokenExchangeFailure = /auth\.openai\.com\/oauth\/token/i.test(message);
+      const tokenExchangeFailure = /auth\.openai\.com\/oauth\/token|OpenAI\s+OAuth\s+request\s+failed|token\s*exchange/i.test(message);
       const transientNetworkSignal = /unexpected\s+eof|eof|connection\s+refused|i\/o\s+timeout|context\s+deadline\s+exceeded|connection\s+reset|broken\s+pipe|failed\s+to\s+fetch|temporarily\s+unavailable|timeout/i.test(message);
       const transientExchangeUserSignal = /token_exchange_user_error|invalid\s+request\.\s+please\s+try\s+again\s+later/i.test(message);
       if (transientExchangeUserSignal) {

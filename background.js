@@ -10565,7 +10565,7 @@ function getDownstreamStateResets(step, state = {}) {
 }
 
 async function invalidateDownstreamAfterStepRestart(step, options = {}) {
-  const { logLabel = `步骤 ${step} 重新执行` } = options;
+  const { includeCurrent = false, logLabel = `步骤 ${step} 重新执行` } = options;
   const state = await getState();
   const nodeStatuses = { ...(state.nodeStatuses || {}) };
   const changedNodes = [];
@@ -10574,7 +10574,8 @@ async function invalidateDownstreamAfterStepRestart(step, options = {}) {
   const currentIndex = activeNodeIds.indexOf(currentNodeId);
 
   if (currentIndex >= 0) {
-    for (let index = currentIndex + 1; index < activeNodeIds.length; index += 1) {
+    const startIndex = includeCurrent ? currentIndex : currentIndex + 1;
+    for (let index = startIndex; index < activeNodeIds.length; index += 1) {
       const downstreamNodeId = activeNodeIds[index];
       if (nodeStatuses[downstreamNodeId] === 'pending') {
         continue;
@@ -10592,7 +10593,7 @@ async function invalidateDownstreamAfterStepRestart(step, options = {}) {
         payload: { nodeId, status: 'pending' },
       }).catch(() => { });
     }
-    await addLog(`${logLabel}，已重置后续节点状态：${changedNodes.join(', ')}`, 'warn');
+    await addLog(`${logLabel}，已重置${includeCurrent ? '当前及后续' : '后续'}节点状态：${changedNodes.join(', ')}`, 'warn');
   }
 
   const resets = getDownstreamStateResets(step, state);
@@ -10603,6 +10604,7 @@ async function invalidateDownstreamAfterStepRestart(step, options = {}) {
 }
 
 async function invalidateDownstreamAfterNodeRestart(nodeId, options = {}) {
+  const { includeCurrent = false } = options;
   const state = await getState();
   const step = getStepIdByNodeIdForState(nodeId, state);
   if (Number.isInteger(step) && step > 0) {
@@ -10616,7 +10618,8 @@ async function invalidateDownstreamAfterNodeRestart(nodeId, options = {}) {
   const currentIndex = activeNodeIds.indexOf(normalizedNodeId);
   const changedNodes = [];
   if (currentIndex >= 0) {
-    for (let index = currentIndex + 1; index < activeNodeIds.length; index += 1) {
+    const startIndex = includeCurrent ? currentIndex : currentIndex + 1;
+    for (let index = startIndex; index < activeNodeIds.length; index += 1) {
       const downstreamNodeId = activeNodeIds[index];
       if (nodeStatuses[downstreamNodeId] === 'pending') {
         continue;
@@ -10633,7 +10636,7 @@ async function invalidateDownstreamAfterNodeRestart(nodeId, options = {}) {
         payload: { nodeId: changedNodeId, status: 'pending' },
       }).catch(() => { });
     }
-    await addLog(`${logLabel}，已重置后续节点状态：${changedNodes.join(', ')}`, 'warn');
+    await addLog(`${logLabel}，已重置${includeCurrent ? '当前及后续' : '后续'}节点状态：${changedNodes.join(', ')}`, 'warn');
   }
 }
 
@@ -14056,7 +14059,6 @@ async function runAutoSequenceFromNodeGraph(startNodeId, context = {}) {
         postStep7RestartCount += 1;
         const restartStep = restartDecision.restartStep;
         const restartNodeId = String(getNodeIdByStepForState(restartStep, await getState()) || 'oauth-login').trim();
-        const resetAfterNodeId = getPreviousNodeId(restartNodeId, await getState()) || restartNodeId;
         const authState = restartDecision.authState;
         const authStateLabel = authState?.state ? getLoginAuthStateLabel(authState.state) : '未知页面';
         const authStateSuffix = authState?.url
@@ -14068,7 +14070,8 @@ async function runAutoSequenceFromNodeGraph(startNodeId, context = {}) {
           `节点 ${getNodeLabel(nodeId, latestState)}：检测到报错且当前未进入 add-phone，正在回到节点 ${restartNodeId} 重新开始授权流程（第 ${postStep7RestartCount} 次重开）。${authStateSuffix}；原因：${restartDecision.errorMessage || '未知错误'}`,
           'warn'
         );
-        await invalidateDownstreamAfterAutoRunNodeRestart(resetAfterNodeId, {
+        await invalidateDownstreamAfterAutoRunNodeRestart(restartNodeId, {
+          includeCurrent: true,
           logLabel: `节点 ${nodeId} 报错后准备回到 ${restartNodeId} 重试（第 ${postStep7RestartCount} 次重开）`,
         });
         nodeIndex = Math.max(0, getNodeIndex(await getState(), restartNodeId));
