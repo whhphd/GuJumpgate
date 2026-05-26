@@ -170,7 +170,11 @@
       'NET::ERR_CONNECTION_RESET',
       'NET::ERR_PROXY_CONNECTION_FAILED',
     ]);
-    const RECOVERABLE_NAVIGATION_RETRY_DELAYS_MS = [1500, 3000, 5000];
+    const RECOVERABLE_NAVIGATION_RETRY_DELAYS_MS = [
+      1500,
+      3000,
+      ...Array(18).fill(5000),
+    ];
 
     function isChromeErrorPageUrl(url = '') {
       return String(url || '').startsWith('chrome-error://');
@@ -1135,6 +1139,7 @@
       waitForTabUrlFamily,
       waitForTabUrlMatch,
       _test: {
+        RECOVERABLE_NAVIGATION_RETRY_DELAYS_MS,
         normalizeAutomationWindowId,
       },
     };
