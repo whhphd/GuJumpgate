@@ -41,6 +41,10 @@
     return normalizeString(value).replace(/\s+/g, '').toUpperCase();
   }
 
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   function escapeHtml(value = '') {
     return String(value || '')
       .replace(/&/g, '&amp;')
@@ -411,6 +415,49 @@
     return waitForTabReady(created?.id);
   }
 
+  async function reloadCardSiteTab(tab, timeoutMs = 30000) {
+    if (!tab?.id || !chrome?.tabs?.reload || !chrome?.tabs?.onUpdated || !chrome?.tabs?.get) {
+      throw new Error('无法刷新卡密取码站标签页。');
+    }
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        clearTimeout(timer);
+        chrome.tabs.onUpdated.removeListener(listener);
+      };
+      const settle = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn(value);
+      };
+      const listener = (updatedTabId, changeInfo, updatedTab) => {
+        if (updatedTabId !== tab.id || changeInfo.status !== 'complete') return;
+        settle(resolve, updatedTab);
+      };
+      const timer = setTimeout(() => {
+        settle(reject, new Error('刷新卡密取码站超时，请确认页面可访问后重试。'));
+      }, timeoutMs);
+
+      chrome.tabs.onUpdated.addListener(listener);
+      chrome.tabs.reload(tab.id, {}, () => {
+        if (chrome.runtime.lastError) {
+          settle(reject, new Error(chrome.runtime.lastError.message || '刷新卡密取码站失败。'));
+          return;
+        }
+        chrome.tabs.get(tab.id, (reloadedTab) => {
+          if (chrome.runtime.lastError) {
+            settle(reject, new Error(chrome.runtime.lastError.message || '读取刷新后的卡密取码站失败。'));
+            return;
+          }
+          if (reloadedTab?.status === 'complete') {
+            settle(resolve, reloadedTab);
+          }
+        });
+      });
+    });
+  }
+
   async function executeOnCardSite(functionName, args = []) {
     const tab = await getCardSiteTab();
     const [{ result } = {}] = await chrome.scripting.executeScript({
@@ -420,6 +467,48 @@
     });
     if (result?.error) throw new Error(result.error);
     return result || {};
+  }
+
+  async function executeOnCardSiteWithPageRefresh(functionName, args = [], options = {}) {
+    const maxPageAttempts = Number(options.maxPageAttempts) === 0
+      ? Infinity
+      : Math.max(1, Math.floor(Number(options.maxPageAttempts) || 3));
+    const requireRunning = Boolean(options.requireRunning);
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxPageAttempts; attempt += 1) {
+      if (requireRunning) throwIfAutoStopped();
+      const tab = await getCardSiteTab();
+      try {
+        const [{ result } = {}] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: cardSiteInjectedRunner,
+          args: [functionName, args],
+        });
+        if (result?.error) throw new Error(result.error);
+        return result || {};
+      } catch (error) {
+        lastError = error;
+        if (!/failed to fetch|网络|请求失败|换出邮箱超时|未识别到邮箱|未识别到新的邮箱秘钥/i.test(error?.message || String(error))) {
+          throw error;
+        }
+        if (attempt >= maxPageAttempts) break;
+        if (requireRunning) throwIfAutoStopped();
+        const attemptText = Number.isFinite(maxPageAttempts)
+          ? `${attempt}/${maxPageAttempts}`
+          : `第 ${attempt} 轮`;
+        updateEntry(state.currentId, {
+          status: 'running',
+          error: `卡密取码站换出失败，正在刷新页面后重试（${attemptText}）：${error?.message || error}`,
+        });
+        await saveState();
+        render();
+        await reloadCardSiteTab(tab).catch(async () => {
+          await delay(1500);
+        });
+        await delay(1500);
+      }
+    }
+    throw lastError || new Error('卡密取码站换出失败。');
   }
 
   async function exchangeCurrentEmail() {
@@ -432,7 +521,11 @@
     try {
       updateEntry(entry.id, { status: 'pending', error: '' });
       render();
-      const result = await executeOnCardSite('exchange', [entry.cardKey]);
+      state.currentId = entry.id;
+      const result = await executeOnCardSiteWithPageRefresh('exchange', [entry.cardKey], {
+        maxPageAttempts: 3,
+        requireRunning: false,
+      });
       updateEntry(entry.id, {
         email: result.email || '',
         mailSecret: result.mailSecret || '',
@@ -458,7 +551,10 @@
     state.currentEntry = entry;
     await saveState();
     render();
-    const result = await executeOnCardSite('exchange', [entry.cardKey]);
+    const result = await executeOnCardSiteWithPageRefresh('exchange', [entry.cardKey], {
+      maxPageAttempts: 0,
+      requireRunning: true,
+    });
     const email = normalizeString(result.email);
     if (!email) {
       throw new Error('卡密已提交，但未换出邮箱。');
@@ -902,17 +998,42 @@
       return looseMatch?.[1] || '';
     }
 
-    async function waitFor(check, timeoutMs, errorMessage) {
+    function hasTransientExchangeError() {
+      const text = normalize(document.body.innerText || '').replace(/\s+/g, ' ');
+      return /failed\s+to\s+fetch|network\s*error|请求失败|网络错误|加载失败|fetch\s+failed/i.test(text);
+    }
+
+    function extractConfirmedCardError() {
+      const text = normalize(document.body.innerText || '').replace(/\s+/g, ' ');
+      const match = text.match(/卡密[^。；\n]*(?:无效|错误|不存在|已使用|已兑换|失效|过期)|(?:invalid|used|expired)[^。；\n]*(?:card|key|code)/i);
+      return match?.[0] || '';
+    }
+
+    async function waitFor(check, timeoutMs, errorMessage, options = {}) {
       const start = Date.now();
+      const pollMs = Math.max(1, Number(options.pollMs) || 300);
       while (Date.now() - start < timeoutMs) {
+        const confirmedCardError = extractConfirmedCardError();
+        if (confirmedCardError) {
+          throw new Error(confirmedCardError);
+        }
+        if (options.abortOnTransientError && hasTransientExchangeError()) {
+          throw new Error('卡密取码站换出请求失败：Failed to fetch');
+        }
         const value = check();
         if (value) return value;
-        await sleep(300);
+        await sleep(pollMs);
       }
       throw new Error(errorMessage);
     }
 
     async function exchange(cardKey) {
+      const options = (args && typeof args[1] === 'object' && args[1]) || {};
+      const maxAttempts = Math.max(1, Math.floor(Number(options.maxAttempts) || 5));
+      const settleMs = Math.max(0, Math.floor(Number(options.settleMs) || 1200));
+      const clickTimeoutMs = Math.max(1000, Math.floor(Number(options.clickTimeoutMs) || 6000));
+      const retryDelayMs = Math.max(0, Math.floor(Number(options.retryDelayMs) || 1800));
+      const pollMs = Math.max(1, Math.floor(Number(options.pollMs) || 300));
       const input = findCardKeyInput();
       if (!input) throw new Error('未找到卡密输入框。');
       const before = getCurrentExchangeSnapshot(input);
@@ -922,21 +1043,41 @@
       setNativeValue(input, cardKey);
       const button = findClickableByText(/换出邮箱|换出.*秘钥|换出.*密钥|兑换|提取/i);
       if (!button) throw new Error('未找到“换出邮箱秘钥”按钮。');
-      button.click();
-      await sleep(1200);
-      const email = await waitFor(
-        () => extractEmail(input, previousEmail),
-        20000,
-        previousEmail
-          ? `换出邮箱超时，页面仍停留在上一轮邮箱：${previousEmail}`
-          : '换出邮箱超时，未识别到邮箱地址。'
-      );
-      const mailSecret = await waitFor(
-        () => extractMailSecret(email, input, previousSecret),
-        10000,
-        '已识别邮箱，但未识别到新的邮箱秘钥。'
-      );
-      return { email, mailSecret };
+      let lastError = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        clearPreviousExchangeOutputs(input);
+        setNativeValue(input, cardKey);
+        button.click();
+        await sleep(settleMs);
+        try {
+          const email = await waitFor(
+            () => extractEmail(input, previousEmail),
+            clickTimeoutMs,
+            previousEmail
+              ? `换出邮箱超时，页面仍停留在上一轮邮箱：${previousEmail}`
+              : '换出邮箱超时，未识别到邮箱地址。',
+            { abortOnTransientError: true, pollMs }
+          );
+          const mailSecret = await waitFor(
+            () => extractMailSecret(email, input, previousSecret),
+            clickTimeoutMs,
+            '已识别邮箱，但未识别到新的邮箱秘钥。',
+            { abortOnTransientError: true, pollMs }
+          );
+          return { email, mailSecret };
+        } catch (error) {
+          lastError = error;
+          if (extractConfirmedCardError()) {
+            throw error;
+          }
+          if (!/failed to fetch|请求失败|网络错误|换出邮箱超时|未识别到邮箱|未识别到新的邮箱秘钥/i.test(error?.message || String(error))) {
+            throw error;
+          }
+          if (attempt >= maxAttempts) break;
+          await sleep(retryDelayMs);
+        }
+      }
+      throw lastError || new Error('卡密取码站换出失败。');
     }
 
     async function fetchCode() {

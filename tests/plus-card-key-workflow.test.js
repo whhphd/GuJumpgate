@@ -156,3 +156,124 @@ test('plus card exchange reads the labeled email field instead of stale page tex
     globalThis.Event = originalEvent;
   }
 });
+
+test('plus card exchange retries clicks when card site reports failed fetch', async () => {
+  const originalDocument = globalThis.document;
+  const originalGetComputedStyle = globalThis.getComputedStyle;
+  const originalInputElement = globalThis.HTMLInputElement;
+  const originalTextareaElement = globalThis.HTMLTextAreaElement;
+  const originalEvent = globalThis.Event;
+
+  let clickCount = 0;
+  let bodyText = '页面旧文本 primacy-rations-1k+48k@icloud.com';
+  const cardField = createFieldStub({ label: '卡密换邮箱秘钥', value: '' });
+  const emailField = createFieldStub({ label: '邮箱', value: 'primacy-rations-1k+48k@icloud.com' });
+  const secretField = createFieldStub({ label: '邮箱秘钥', value: 'OLDSECRET01' });
+  const exchangeButton = {
+    innerText: '换出邮箱秘钥',
+    getBoundingClientRect() {
+      return { width: 100, height: 24 };
+    },
+    click() {
+      clickCount += 1;
+      if (clickCount < 3) {
+        bodyText = 'Error: Failed to fetch';
+        emailField.value = 'primacy-rations-1k+48k@icloud.com';
+        secretField.value = 'OLDSECRET01';
+        return;
+      }
+      bodyText = '换出成功';
+      emailField.value = 'primacy-rations-1k+di0@icloud.com';
+      secretField.value = 'D3D54344E639E62C';
+    },
+  };
+
+  try {
+    globalThis.HTMLInputElement = function HTMLInputElement() {};
+    globalThis.HTMLTextAreaElement = function HTMLTextAreaElement() {};
+    globalThis.Event = function Event(type) {
+      this.type = type;
+    };
+    globalThis.getComputedStyle = () => ({ visibility: 'visible', display: 'block' });
+    globalThis.document = {
+      body: {
+        get innerText() {
+          return bodyText;
+        },
+      },
+      querySelectorAll(selector) {
+        if (/^button/.test(selector)) return [exchangeButton];
+        return [cardField, emailField, secretField];
+      },
+    };
+
+    const result = await globalThis.PlusCardKeyWorkflow._test.cardSiteInjectedRunner('exchange', [
+      '29NE-BKLR-DAY4',
+      { maxAttempts: 3, settleMs: 1, clickTimeoutMs: 5, retryDelayMs: 1, pollMs: 1 },
+    ]);
+    assert.equal(clickCount, 3);
+    assert.deepEqual(result, {
+      email: 'primacy-rations-1k+di0@icloud.com',
+      mailSecret: 'D3D54344E639E62C',
+    });
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.getComputedStyle = originalGetComputedStyle;
+    globalThis.HTMLInputElement = originalInputElement;
+    globalThis.HTMLTextAreaElement = originalTextareaElement;
+    globalThis.Event = originalEvent;
+  }
+});
+
+test('plus card exchange does not retry confirmed invalid card errors', async () => {
+  const originalDocument = globalThis.document;
+  const originalGetComputedStyle = globalThis.getComputedStyle;
+  const originalInputElement = globalThis.HTMLInputElement;
+  const originalTextareaElement = globalThis.HTMLTextAreaElement;
+  const originalEvent = globalThis.Event;
+
+  let clickCount = 0;
+  const cardField = createFieldStub({ label: '卡密换邮箱秘钥', value: '' });
+  const emailField = createFieldStub({ label: '邮箱', value: '' });
+  const secretField = createFieldStub({ label: '邮箱秘钥', value: '' });
+  const exchangeButton = {
+    innerText: '换出邮箱秘钥',
+    getBoundingClientRect() {
+      return { width: 100, height: 24 };
+    },
+    click() {
+      clickCount += 1;
+    },
+  };
+
+  try {
+    globalThis.HTMLInputElement = function HTMLInputElement() {};
+    globalThis.HTMLTextAreaElement = function HTMLTextAreaElement() {};
+    globalThis.Event = function Event(type) {
+      this.type = type;
+    };
+    globalThis.getComputedStyle = () => ({ visibility: 'visible', display: 'block' });
+    globalThis.document = {
+      body: {
+        innerText: '卡密已使用，请更换卡密',
+      },
+      querySelectorAll(selector) {
+        if (/^button/.test(selector)) return [exchangeButton];
+        return [cardField, emailField, secretField];
+      },
+    };
+
+    const result = await globalThis.PlusCardKeyWorkflow._test.cardSiteInjectedRunner('exchange', [
+      'USED-BKLR-DAY4',
+      { maxAttempts: 3, settleMs: 1, clickTimeoutMs: 5, retryDelayMs: 1, pollMs: 1 },
+    ]);
+    assert.equal(clickCount, 1);
+    assert.match(result.error, /卡密已使用/);
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.getComputedStyle = originalGetComputedStyle;
+    globalThis.HTMLInputElement = originalInputElement;
+    globalThis.HTMLTextAreaElement = originalTextareaElement;
+    globalThis.Event = originalEvent;
+  }
+});
