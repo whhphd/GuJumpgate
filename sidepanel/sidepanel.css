@@ -2613,6 +2613,20 @@ header {
   text-align: left;
 }
 
+.plus-card-key-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+}
+
+.plus-card-key-item .section-mini-actions {
+  flex-shrink: 0;
+}
+
 /* Status Bar */
 .status-bar {
   display: flex;

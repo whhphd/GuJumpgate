@@ -2,6 +2,7 @@
   root.MultiPageBackgroundStep8 = factory();
 })(typeof self !== 'undefined' ? self : globalThis, function createBackgroundStep8Module() {
   const MAIL_2925_FILTER_LOOKBACK_MS = 10 * 60 * 1000;
+  const PLUS_CARD_KEY_SITE_TAB_URL_PATTERN = '*://plus.keria.cc.cd/*';
 
   function createStep8Executor(deps = {}) {
     const {
@@ -28,6 +29,7 @@
       rerunStep7ForStep8Recovery,
       reuseOrCreateTab,
       sendToContentScriptResilient,
+      submitVerificationCode,
       persistRegistrationEmailState = null,
       phoneVerificationHelpers = null,
       setState,
@@ -90,6 +92,100 @@
           || String(state?.signupPhoneCompletedActivation?.phoneNumber || '').trim()
           || String(state?.signupPhoneActivation?.phoneNumber || '').trim()
         );
+    }
+
+    function isPlusCardKeyWorkflowState(state = {}) {
+      return Boolean(state?.plusCardKeyWorkflow);
+    }
+
+    function normalizePlusCardKeyVerificationCode(value = '') {
+      const digits = String(value || '').replace(/\D+/g, '');
+      return /^\d{4,8}$/.test(digits) ? digits : '';
+    }
+
+    async function getPlusCardKeySiteTab(visibleStep) {
+      if (!chrome?.tabs?.query || !chrome?.tabs?.update) {
+        throw new Error(`步骤 ${visibleStep}：当前运行环境不支持访问 Plus 卡密取码站标签页。`);
+      }
+      const tabs = await chrome.tabs.query({ url: PLUS_CARD_KEY_SITE_TAB_URL_PATTERN });
+      const tab = tabs.find((candidate) => Number.isInteger(candidate?.id)) || null;
+      if (!tab?.id) {
+        throw new Error(`步骤 ${visibleStep}：未找到 Plus 卡密取码站标签页，请先在侧边栏完成当前卡密换邮箱后再启动流程。`);
+      }
+      await chrome.tabs.update(tab.id, { active: true });
+      return tab;
+    }
+
+    async function fetchPlusCardKeyLoginCode(visibleStep) {
+      if (!chrome?.scripting?.executeScript) {
+        throw new Error(`步骤 ${visibleStep}：当前运行环境不支持在 Plus 卡密取码站执行取码脚本。`);
+      }
+      const tab = await getPlusCardKeySiteTab(visibleStep);
+      const [{ result } = {}] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: plusCardKeyFetchCodeInjectedRunner,
+      });
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+      const code = normalizePlusCardKeyVerificationCode(result?.code);
+      if (!code) {
+        throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站未返回有效验证码。`);
+      }
+      return { code };
+    }
+
+    function plusCardKeyFetchCodeInjectedRunner() {
+      const CODE_PATTERN = /(?:验证码|verification\s*code|code)[\s:：是为-]*([0-9](?:[\s-]?[0-9]){3,7})/i;
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const normalize = (value = '') => String(value || '').trim();
+
+      function isVisible(element) {
+        if (!element) return false;
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      }
+
+      function getText(element) {
+        return normalize(element?.innerText || element?.textContent || element?.value || '');
+      }
+
+      function findClickableByText(pattern) {
+        const elements = [...document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], a')];
+        return elements.find((element) => isVisible(element) && pattern.test(getText(element))) || null;
+      }
+
+      function extractCode() {
+        const formValues = [...document.querySelectorAll('input, textarea')]
+          .map((input) => normalize(input.value))
+          .filter(Boolean);
+        const text = normalize([document.body?.innerText || '', ...formValues].join(' ')).replace(/\s+/g, ' ');
+        const keywordMatch = text.match(CODE_PATTERN);
+        if (keywordMatch?.[1]) return keywordMatch[1].replace(/\D+/g, '');
+        const looseMatch = text.match(/\b(\d{4,8})\b/);
+        return looseMatch?.[1] || '';
+      }
+
+      async function waitFor(check, timeoutMs, errorMessage) {
+        const start = Date.now();
+        while (Date.now() - start < timeoutMs) {
+          const value = check();
+          if (value) return value;
+          await sleep(300);
+        }
+        throw new Error(errorMessage);
+      }
+
+      return Promise.resolve()
+        .then(async () => {
+          const button = findClickableByText(/邮箱取码|取码|获取验证码/i);
+          if (!button) throw new Error('Plus 卡密取码站未找到“邮箱取码”按钮。');
+          button.click();
+          const code = await waitFor(extractCode, 60000, 'Plus 卡密取码站邮箱取码超时，未识别到验证码。');
+          return { code };
+        })
+        .catch((error) => ({ error: error?.message || String(error) }));
     }
 
     function getAuthLoginStepForVisibleStep(visibleStep) {
@@ -556,6 +652,52 @@
       const notifyResendRequestedAt = typeof runtime?.onResendRequestedAt === 'function'
         ? runtime.onResendRequestedAt
         : null;
+      if (isPlusCardKeyWorkflowState(preparedState)) {
+        if (typeof submitVerificationCode !== 'function') {
+          throw new Error(`步骤 ${visibleStep}：Plus 卡密验证码提交模块尚未初始化。`);
+        }
+        const displayedVerificationEmail = normalizeStep8VerificationTargetEmail(pageState?.displayedEmail);
+        const targetEmail = displayedVerificationEmail
+          || normalizeStep8VerificationTargetEmail(preparedState?.step8VerificationTargetEmail || preparedState?.email);
+        await setState({
+          step8VerificationTargetEmail: targetEmail || '',
+        });
+        await addLog(`步骤 ${visibleStep}：Plus 卡密登录验证码页已就绪，改用卡密取码站获取验证码。`, 'info');
+        if (targetEmail) {
+          await addLog(`步骤 ${visibleStep}：当前验证码页显示邮箱 ${targetEmail}。`, 'info');
+        }
+
+        throwIfStopped();
+        const result = await fetchPlusCardKeyLoginCode(visibleStep);
+        const code = normalizePlusCardKeyVerificationCode(result?.code);
+        if (!code) {
+          throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站未识别到有效验证码。`);
+        }
+        await addLog(`步骤 ${visibleStep}：已从 Plus 卡密取码站获取登录验证码：${code}`);
+        throwIfStopped();
+        const submitResult = await submitVerificationCode(8, code, {
+          completionStep: visibleStep,
+          getRemainingTimeMs: getStep8RemainingTimeResolver(preparedState?.oauthUrl || '', visibleStep),
+        });
+        if (submitResult?.invalidCode) {
+          throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站验证码被页面拒绝：${submitResult.errorText || code}`);
+        }
+        await setState({
+          lastEmailTimestamp: Date.now(),
+          lastLoginCode: code,
+        });
+        if (typeof completeNodeFromBackground !== 'function') {
+          throw new Error(`步骤 ${visibleStep}：Plus 卡密验证码已提交，但节点完成模块尚未初始化。`);
+        }
+        await completeNodeFromBackground(preparedState?.nodeId || 'fetch-login-code', {
+          emailTimestamp: Date.now(),
+          code,
+          phoneVerificationRequired: Boolean(submitResult?.addPhonePage),
+          plusCardKeyWorkflow: true,
+        });
+        return { lastResendAt: latestResendAt };
+      }
+
       const mail = getMailConfig(preparedState);
       if (mail.error) throw new Error(mail.error);
       const stepStartedAt = Date.now();

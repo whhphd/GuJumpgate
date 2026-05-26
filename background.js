@@ -184,6 +184,11 @@ const LOCAL_CPA_JSON_NO_RT_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.get
   panelMode: 'local-cpa-json-no-rt',
   plusModeEnabled: true,
 }) || PLUS_PAYPAL_STEP_DEFINITIONS.slice(0, 6);
+const PLUS_CARD_KEY_SUB2API_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  panelMode: 'sub2api',
+  plusCardKeyWorkflow: true,
+}) || [];
 const PLUS_STEP_DEFINITIONS = PLUS_PAYPAL_STEP_DEFINITIONS;
 const ALL_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getAllSteps?.({
   activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
@@ -206,6 +211,7 @@ const ALL_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getAllSteps?.({
   ...PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS,
   ...PLUS_GPC_PHONE_STEP_DEFINITIONS,
   ...PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+  ...PLUS_CARD_KEY_SUB2API_STEP_DEFINITIONS,
 ];
 const STEP_IDS = Array.from(new Set(ALL_STEP_DEFINITIONS
   .map((definition) => Number(definition?.id))
@@ -699,6 +705,10 @@ function isPlusModeState(state = {}) {
   return Boolean(state?.plusModeEnabled);
 }
 
+function isPlusCardKeyWorkflowState(state = {}) {
+  return Boolean(state?.plusCardKeyWorkflow);
+}
+
 function normalizePlusPaymentMethod(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === PLUS_PAYMENT_METHOD_GPC_HELPER) {
@@ -762,6 +772,7 @@ function getStepDefinitionsForState(state = {}) {
       activeFlowId,
       panelMode,
       plusModeEnabled: isPlusModeState(state),
+      plusCardKeyWorkflow: isPlusCardKeyWorkflowState(state),
       plusPaymentMethod: normalizePlusPaymentMethod(state?.plusPaymentMethod),
       plusAccountAccessStrategy: normalizePlusAccountAccessStrategyForState(state),
       signupMethod: getSignupMethodForStepDefinitions(state),
@@ -774,6 +785,9 @@ function getStepDefinitionsForState(state = {}) {
   const activeFlowId = String(state?.activeFlowId || '').trim().toLowerCase();
   if (activeFlowId && activeFlowId !== DEFAULT_ACTIVE_FLOW_ID) {
     return [];
+  }
+  if (isPlusCardKeyWorkflowState(state)) {
+    return PLUS_CARD_KEY_SUB2API_STEP_DEFINITIONS;
   }
   if (!isPlusModeState(state)) {
     return NORMAL_STEP_DEFINITIONS;
@@ -4308,7 +4322,7 @@ async function resetState() {
     phoneReusableActivationPool,
     preferredIcloudHost: prev.preferredIcloudHost || '',
     automationWindowId: Number.isInteger(Number(prev.automationWindowId))
-      && Number(prev.automationWindowId) >= 0
+      && Number(prev.automationWindowId) > 0
       ? Number(prev.automationWindowId)
       : null,
   });
@@ -9799,6 +9813,9 @@ function getFirstUnfinishedStep(statuses = {}, stateOverride = null) {
 
 function hasSavedNodeProgress(statuses = {}, stateOverride = null) {
   const state = stateOverride || {};
+  if (isPlusCardKeyWorkflowState(state)) {
+    return true;
+  }
   const nodeStatuses = normalizeStatusMapForNodes(statuses, state);
   if (workflowEngine?.hasSavedProgress) {
     return workflowEngine.hasSavedProgress(nodeStatuses, state);
@@ -10222,6 +10239,64 @@ function getAutoRunStatusPayload(phase, payload = {}) {
   };
 }
 
+let lastPlusCardKeyWorkflowEventKey = '';
+
+function getPlusCardKeyWorkflowFailureReason(state = {}) {
+  const summaries = Array.isArray(state?.autoRunRoundSummaries) ? state.autoRunRoundSummaries : [];
+  const failedSummary = summaries.find((summary) => String(summary?.status || '').trim().toLowerCase() === 'failed');
+  if (failedSummary?.finalFailureReason) {
+    return String(failedSummary.finalFailureReason || '').trim();
+  }
+  const statuses = state?.nodeStatuses || {};
+  const failedNodeId = Object.keys(statuses).find((nodeId) => String(statuses[nodeId] || '').trim() === 'failed');
+  if (failedNodeId) {
+    return `节点 ${failedNodeId} 失败。`;
+  }
+  const stoppedNodeId = Object.keys(statuses).find((nodeId) => String(statuses[nodeId] || '').trim() === 'stopped');
+  if (stoppedNodeId) {
+    return `节点 ${stoppedNodeId} 已停止。`;
+  }
+  return '后台 Plus 卡密工作流已停止。';
+}
+
+async function maybeBroadcastPlusCardKeyWorkflowTerminalEvent(phase) {
+  const normalizedPhase = String(phase || '').trim().toLowerCase();
+  if (normalizedPhase !== 'complete' && normalizedPhase !== 'stopped') {
+    return;
+  }
+  if (autoRunActive) {
+    setTimeout(() => {
+      maybeBroadcastPlusCardKeyWorkflowTerminalEvent(phase).catch(() => {});
+    }, 500);
+    return;
+  }
+  const state = await getState().catch(() => ({}));
+  if (!state?.plusCardKeyWorkflow) {
+    return;
+  }
+  const cardKey = String(state.plusCardKey || '').trim();
+  const eventKey = [
+    normalizedPhase,
+    cardKey,
+    Number(state.plusCardKeyWorkflowStartedAt) || 0,
+  ].join(':');
+  if (eventKey && eventKey === lastPlusCardKeyWorkflowEventKey) {
+    return;
+  }
+  lastPlusCardKeyWorkflowEventKey = eventKey;
+  const success = normalizedPhase === 'complete';
+  chrome.runtime.sendMessage({
+    type: success ? 'PLUS_CARD_KEY_WORKFLOW_DONE' : 'PLUS_CARD_KEY_WORKFLOW_FAILED',
+    payload: {
+      cardKey,
+      email: String(state.plusCardKeyEmail || state.email || '').trim(),
+      phase: normalizedPhase,
+      ok: success,
+      error: success ? '' : getPlusCardKeyWorkflowFailureReason(state),
+    },
+  }).catch(() => {});
+}
+
 async function broadcastAutoRunStatus(phase, payload = {}, extraState = {}) {
   const rawScheduledAt = phase === 'scheduled'
     ? (payload.scheduledAt ?? payload.scheduledAutoRunAt ?? null)
@@ -10247,6 +10322,7 @@ async function broadcastAutoRunStatus(phase, payload = {}, extraState = {}) {
     type: 'AUTO_RUN_STATUS',
     payload: statusPayload,
   }).catch(() => { });
+  await maybeBroadcastPlusCardKeyWorkflowTerminalEvent(phase);
 }
 
 function isAutoRunLockedState(state) {
@@ -13836,6 +13912,7 @@ const step8Executor = self.MultiPageBackgroundStep8?.createStep8Executor({
   resolveSignupMethod,
   reuseOrCreateTab,
   sendToContentScriptResilient,
+  submitVerificationCode: verificationFlowHelpers.submitVerificationCode,
   setState,
   shouldUseCustomRegistrationEmail,
   sleepWithStop,
@@ -14258,6 +14335,7 @@ const plusGpcPhoneBoundEmailReloginStepRegistry = buildStepRegistry(PLUS_GPC_PHO
 const plusGpcSub2ApiSessionStepRegistry = buildStepRegistry(PLUS_GPC_SUB2API_SESSION_STEP_DEFINITIONS);
 const plusGpcCpaSessionStepRegistry = buildStepRegistry(PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS);
 const localCpaJsonNoRtStepRegistry = buildStepRegistry(LOCAL_CPA_JSON_NO_RT_STEP_DEFINITIONS);
+const plusCardKeySub2ApiStepRegistry = buildStepRegistry(PLUS_CARD_KEY_SUB2API_STEP_DEFINITIONS);
 
 function getStepRegistryForState(state = {}) {
   const activeFlowId = String(state?.activeFlowId || DEFAULT_ACTIVE_FLOW_ID).trim().toLowerCase() || DEFAULT_ACTIVE_FLOW_ID;
@@ -14266,6 +14344,9 @@ function getStepRegistryForState(state = {}) {
   }
   if (getPanelMode(state) === 'local-cpa-json-no-rt') {
     return localCpaJsonNoRtStepRegistry;
+  }
+  if (isPlusCardKeyWorkflowState(state)) {
+    return plusCardKeySub2ApiStepRegistry;
   }
   const signupMethod = getSignupMethodForStepDefinitions(state);
   const useBoundEmailRelogin = signupMethod === SIGNUP_METHOD_PHONE

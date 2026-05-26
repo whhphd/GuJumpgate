@@ -84,7 +84,7 @@
         return null;
       }
       const numeric = Number(value);
-      return Number.isInteger(numeric) && numeric >= 0 ? numeric : null;
+      return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
     }
 
     function buildAutomationWindowUnavailableError(error) {
@@ -1134,6 +1134,9 @@
       waitForTabStableComplete,
       waitForTabUrlFamily,
       waitForTabUrlMatch,
+      _test: {
+        normalizeAutomationWindowId,
+      },
     };
   }
 

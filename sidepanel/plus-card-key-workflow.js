@@ -1,0 +1,901 @@
+// sidepanel/plus-card-key-workflow.js — Plus 卡密独立工作流第一阶段
+(function attachPlusCardKeyWorkflow(root) {
+  const STORAGE_KEY = 'plusCardKeyWorkflowState';
+  const CARD_SITE_URL = 'https://plus.keria.cc.cd/';
+
+  const selectors = {
+    textarea: 'input-plus-card-key-list',
+    importButton: 'btn-plus-card-key-import',
+    startAutoButton: 'btn-plus-card-key-start-auto',
+    stopAutoButton: 'btn-plus-card-key-stop-auto',
+    exchangeButton: 'btn-plus-card-key-exchange',
+    fetchCodeButton: 'btn-plus-card-key-fetch-code',
+    openSiteButton: 'btn-plus-card-key-open-site',
+    clearButton: 'btn-plus-card-key-clear',
+    summary: 'plus-card-key-summary',
+    current: 'plus-card-key-current',
+    list: 'plus-card-key-list',
+  };
+
+  let state = {
+    entries: [],
+    currentId: '',
+    running: false,
+    currentEntry: null,
+    lastError: '',
+    failures: [],
+  };
+  let busy = false;
+  let autoRunLoopActive = false;
+  let waitingBackgroundFlow = null;
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+  function normalizeString(value = '') {
+    return String(value || '').trim();
+  }
+
+  function normalizeCardKey(value = '') {
+    return normalizeString(value).replace(/\s+/g, '').toUpperCase();
+  }
+
+  function escapeHtml(value = '') {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function buildEntry(cardKey) {
+    const normalized = normalizeCardKey(cardKey);
+    return {
+      id: `plus-card:${normalized}`,
+      cardKey: normalized,
+      email: '',
+      mailSecret: '',
+      code: '',
+      status: 'pending',
+      error: '',
+      updatedAt: Date.now(),
+    };
+  }
+
+  function normalizeEntry(entry) {
+    const cardKey = normalizeCardKey(entry?.cardKey || entry?.key || entry);
+    if (!cardKey) return null;
+    return {
+      ...buildEntry(cardKey),
+      id: normalizeString(entry?.id) || `plus-card:${cardKey}`,
+      email: normalizeString(entry?.email),
+      mailSecret: normalizeString(entry?.mailSecret || entry?.secret),
+      code: normalizeString(entry?.code),
+      status: normalizeString(entry?.status) || 'pending',
+      error: normalizeString(entry?.error),
+      updatedAt: Math.max(0, Number(entry?.updatedAt) || 0) || Date.now(),
+    };
+  }
+
+  function normalizeState(value = {}) {
+    const entries = [];
+    const seen = new Set();
+    (Array.isArray(value?.entries) ? value.entries : []).forEach((item) => {
+      const entry = normalizeEntry(item);
+      if (!entry || seen.has(entry.cardKey)) return;
+      seen.add(entry.cardKey);
+      entries.push(entry);
+    });
+    const currentId = normalizeString(value?.currentId);
+    const currentEntry = normalizeEntry(value?.currentEntry) || null;
+    const failures = (Array.isArray(value?.failures) ? value.failures : [])
+      .map((item) => ({
+        cardKey: normalizeCardKey(item?.cardKey),
+        email: normalizeString(item?.email),
+        error: normalizeString(item?.error),
+        at: Math.max(0, Number(item?.at) || 0),
+      }))
+      .filter((item) => item.cardKey && item.error)
+      .slice(-50);
+    return {
+      entries,
+      currentId: entries.some((entry) => entry.id === currentId) ? currentId : (entries[0]?.id || ''),
+      running: Boolean(value?.running),
+      currentEntry,
+      lastError: normalizeString(value?.lastError),
+      failures,
+    };
+  }
+
+  function getCurrentEntry() {
+    return state.entries.find((entry) => entry.id === state.currentId) || state.entries[0] || null;
+  }
+
+  async function saveState() {
+    await chrome.storage.local.set({ [STORAGE_KEY]: state });
+  }
+
+  async function loadState() {
+    const data = await chrome.storage.local.get([STORAGE_KEY]);
+    state = normalizeState(data?.[STORAGE_KEY]);
+    render();
+  }
+
+  function setBusy(nextBusy) {
+    busy = Boolean(nextBusy);
+    [
+      selectors.importButton,
+      selectors.startAutoButton,
+      selectors.exchangeButton,
+      selectors.fetchCodeButton,
+      selectors.openSiteButton,
+      selectors.clearButton,
+    ].forEach((id) => {
+      const el = $(id);
+      if (el) el.disabled = busy || state.running;
+    });
+    const stopButton = $(selectors.stopAutoButton);
+    if (stopButton) stopButton.disabled = !state.running;
+    const startButton = $(selectors.startAutoButton);
+    if (startButton) startButton.disabled = busy || state.running || !state.entries.length;
+  }
+
+  function getStatusText(status = '') {
+    switch (status) {
+      case 'exchanged': return '已换邮箱';
+      case 'code_received': return '已取码';
+      case 'running': return '自动处理中';
+      case 'failed': return '失败';
+      case 'skipped': return '已跳过';
+      default: return '待处理';
+    }
+  }
+
+  function getSummaryText() {
+    const total = state.entries.length;
+    const exchanged = state.entries.filter((entry) => entry.email).length;
+    const coded = state.entries.filter((entry) => entry.code).length;
+    const failed = state.failures.length;
+    const prefix = state.running ? '自动运行中，' : '';
+    return total
+      ? `${prefix}共 ${total} 个卡密，已换邮箱 ${exchanged} 个，已取码 ${coded} 个，失败 ${failed} 个。${state.lastError ? `最近失败：${state.lastError}` : ''}`
+      : `${prefix}${state.lastError ? `队列为空。最近失败：${state.lastError}` : '未导入卡密。'}`;
+  }
+
+  function render() {
+    const summary = $(selectors.summary);
+    const current = $(selectors.current);
+    const list = $(selectors.list);
+    const currentEntry = getCurrentEntry();
+
+    if (summary) summary.textContent = getSummaryText();
+    if (current) {
+      current.textContent = currentEntry
+        ? `当前：${currentEntry.cardKey}${currentEntry.email ? ` / ${currentEntry.email}` : ''}${currentEntry.code ? ` / 验证码 ${currentEntry.code}` : ''}`
+        : '当前：无';
+    }
+    setBusy(busy);
+    if (!list) return;
+
+    list.innerHTML = '';
+    state.entries.forEach((entry) => {
+      const item = document.createElement('div');
+      item.className = 'plus-card-key-item';
+      item.dataset.entryId = entry.id;
+      const isCurrent = entry.id === state.currentId;
+      item.innerHTML = `
+        <div class="section-mini-header">
+          <div class="section-mini-copy">
+            <span class="data-value mono${isCurrent ? ' has-value' : ''}">${escapeHtml(entry.cardKey)}${isCurrent ? '（当前）' : ''}</span>
+            <span class="data-value">${escapeHtml(getStatusText(entry.status))}${entry.error ? `：${escapeHtml(entry.error)}` : ''}</span>
+          </div>
+          <div class="section-mini-actions">
+            <button class="btn btn-ghost btn-xs" type="button" data-action="select"${state.running ? ' disabled' : ''}>设为当前</button>
+            <button class="btn btn-ghost btn-xs" type="button" data-action="skip"${state.running ? ' disabled' : ''}>跳过</button>
+          </div>
+        </div>
+        <div class="data-value mono">邮箱：${escapeHtml(entry.email || '未换出')}</div>
+        <div class="data-value mono">秘钥：${escapeHtml(entry.mailSecret || '未换出')}</div>
+        <div class="data-value mono">验证码：${escapeHtml(entry.code || '未获取')}</div>
+      `;
+      list.appendChild(item);
+    });
+  }
+
+  async function importCardKeys() {
+    const textarea = $(selectors.textarea);
+    const raw = textarea?.value || '';
+    const cardKeys = raw
+      .split(/[\r\n]+/)
+      .map(normalizeCardKey)
+      .filter(Boolean);
+    if (!cardKeys.length) {
+      showWorkflowToast('请先粘贴卡密清单。', 'warn');
+      return;
+    }
+
+    const existingByKey = new Map(state.entries.map((entry) => [entry.cardKey, entry]));
+    cardKeys.forEach((cardKey) => {
+      if (!existingByKey.has(cardKey)) {
+        existingByKey.set(cardKey, buildEntry(cardKey));
+      }
+    });
+    state.entries = [...existingByKey.values()];
+    if (!state.currentId && state.entries[0]) {
+      state.currentId = state.entries[0].id;
+    }
+    await saveState();
+    render();
+    showWorkflowToast(`已导入 ${cardKeys.length} 行卡密。`, 'success');
+  }
+
+  async function clearQueue() {
+    if (state.entries.length && !confirm('确认清空 Plus 卡密队列？')) return;
+    state = { entries: [], currentId: '', running: false, currentEntry: null, lastError: '', failures: [] };
+    await saveState();
+    render();
+  }
+
+  function updateEntry(entryId, patch = {}) {
+    state.entries = state.entries.map((entry) => {
+      if (entry.id !== entryId) return entry;
+      return {
+        ...entry,
+        ...patch,
+        updatedAt: Date.now(),
+      };
+    });
+  }
+
+  function selectNextPending() {
+    const next = state.entries.find((entry) => !['code_received', 'skipped'].includes(entry.status));
+    state.currentId = next?.id || state.entries[0]?.id || '';
+  }
+
+  function removeEntry(entryId) {
+    state.entries = state.entries.filter((entry) => entry.id !== entryId);
+    if (state.currentId === entryId) {
+      state.currentId = state.entries[0]?.id || '';
+    }
+  }
+
+  function recordFailure(entry, errorMessage) {
+    const failure = {
+      cardKey: entry?.cardKey || '',
+      email: entry?.email || '',
+      error: normalizeString(errorMessage) || '未知错误',
+      at: Date.now(),
+    };
+    state.failures = [...(state.failures || []), failure].slice(-50);
+    state.lastError = failure.error;
+  }
+
+  function throwIfAutoStopped() {
+    if (!state.running) {
+      throw new Error('用户停止 Plus 卡密自动流程。');
+    }
+  }
+
+  function showWorkflowToast(message, type = 'info') {
+    if (typeof root.showToast === 'function') {
+      root.showToast(message, type);
+      return;
+    }
+    console.log('[PlusCardKey]', message);
+  }
+
+  async function getCardSiteTab() {
+    async function waitForTabReady(tabId, timeoutMs = 30000) {
+      if (!tabId || !chrome?.tabs?.onUpdated || !chrome?.tabs?.get) {
+        throw new Error('无法等待卡密取码站标签页加载。');
+      }
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+          clearTimeout(timer);
+          chrome.tabs.onUpdated.removeListener(listener);
+        };
+        const settle = (fn, value) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          fn(value);
+        };
+        const listener = (updatedTabId, changeInfo, tab) => {
+          if (updatedTabId !== tabId || changeInfo.status !== 'complete') return;
+          settle(resolve, tab);
+        };
+        const timer = setTimeout(() => {
+          settle(reject, new Error('卡密取码站加载超时，请确认页面可访问后重试。'));
+        }, timeoutMs);
+
+        chrome.tabs.onUpdated.addListener(listener);
+        chrome.tabs.get(tabId, (tab) => {
+          if (chrome.runtime.lastError) {
+            settle(reject, new Error(chrome.runtime.lastError.message || '读取卡密取码站标签页失败。'));
+            return;
+          }
+          if (tab?.status === 'complete') {
+            settle(resolve, tab);
+          }
+        });
+      });
+    }
+
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTab = tabs.find((tab) => tab?.id && /plus\.keria\.cc\.cd/i.test(tab.url || ''));
+    if (activeTab?.id) {
+      return activeTab.status === 'complete' ? activeTab : waitForTabReady(activeTab.id);
+    }
+
+    const siteTabs = await chrome.tabs.query({ url: '*://plus.keria.cc.cd/*' });
+    if (siteTabs[0]?.id) {
+      await chrome.tabs.update(siteTabs[0].id, { active: true });
+      return siteTabs[0].status === 'complete' ? siteTabs[0] : waitForTabReady(siteTabs[0].id);
+    }
+
+    const created = await chrome.tabs.create({ url: CARD_SITE_URL, active: true });
+    return waitForTabReady(created?.id);
+  }
+
+  async function executeOnCardSite(functionName, args = []) {
+    const tab = await getCardSiteTab();
+    const [{ result } = {}] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: cardSiteInjectedRunner,
+      args: [functionName, args],
+    });
+    if (result?.error) throw new Error(result.error);
+    return result || {};
+  }
+
+  async function exchangeCurrentEmail() {
+    const entry = getCurrentEntry();
+    if (!entry) {
+      showWorkflowToast('请先导入卡密。', 'warn');
+      return;
+    }
+    setBusy(true);
+    try {
+      updateEntry(entry.id, { status: 'pending', error: '' });
+      render();
+      const result = await executeOnCardSite('exchange', [entry.cardKey]);
+      updateEntry(entry.id, {
+        email: result.email || '',
+        mailSecret: result.mailSecret || '',
+        status: 'exchanged',
+        error: '',
+      });
+      await saveState();
+      render();
+      showWorkflowToast(`已换出邮箱：${result.email}`, 'success');
+    } catch (error) {
+      updateEntry(entry.id, { status: 'failed', error: error?.message || String(error) });
+      await saveState();
+      render();
+      showWorkflowToast(error?.message || '换出邮箱失败。', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exchangeCardKey(entry) {
+    updateEntry(entry.id, { status: 'running', error: '' });
+    state.currentId = entry.id;
+    state.currentEntry = entry;
+    await saveState();
+    render();
+    const result = await executeOnCardSite('exchange', [entry.cardKey]);
+    const email = normalizeString(result.email);
+    if (!email) {
+      throw new Error('卡密已提交，但未换出邮箱。');
+    }
+    updateEntry(entry.id, {
+      email,
+      mailSecret: normalizeString(result.mailSecret),
+      status: 'exchanged',
+      error: '',
+    });
+    state.currentEntry = {
+      ...entry,
+      email,
+      mailSecret: normalizeString(result.mailSecret),
+      status: 'exchanged',
+      error: '',
+    };
+    await saveState();
+    render();
+    return state.currentEntry;
+  }
+
+  function getPlusWorkflowFailureFromState(flowState = {}) {
+    const summaries = Array.isArray(flowState?.autoRunRoundSummaries) ? flowState.autoRunRoundSummaries : [];
+    const failedSummary = summaries.find((summary) => String(summary?.status || '') === 'failed');
+    if (failedSummary?.finalFailureReason) return failedSummary.finalFailureReason;
+    const statuses = flowState?.nodeStatuses || {};
+    const failedNode = Object.keys(statuses).find((nodeId) => statuses[nodeId] === 'failed');
+    if (failedNode) return `节点 ${failedNode} 失败`;
+    return '后台流程失败或被停止。';
+  }
+
+  async function getBackgroundState() {
+    const result = await chrome.runtime.sendMessage({ type: 'GET_STATE', source: 'plus-card-key-workflow' });
+    if (result?.error) throw new Error(result.error);
+    return result || {};
+  }
+
+  async function waitForBackgroundIdle(timeoutMs = 30000) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const flowState = await getBackgroundState();
+      const phase = normalizeString(flowState?.autoRunPhase).toLowerCase();
+      const locked = Boolean(flowState?.autoRunning)
+        && ['running', 'waiting_step', 'retrying', 'waiting_interval', 'waiting_email', 'scheduled'].includes(phase);
+      const runningNode = Object.values(flowState?.nodeStatuses || {})
+        .some((status) => normalizeString(status).toLowerCase() === 'running');
+      if (!locked && !runningNode) {
+        return flowState;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error('等待后台自动流程停止超时。');
+  }
+
+  function settleWaitingBackgroundFlow(message) {
+    if (!waitingBackgroundFlow) return;
+    if (message?.type === 'PLUS_CARD_KEY_WORKFLOW_DONE' || message?.type === 'PLUS_CARD_KEY_WORKFLOW_FAILED') {
+      const waiter = waitingBackgroundFlow;
+      waitingBackgroundFlow = null;
+      clearTimeout(waiter.timer);
+      if (message.type === 'PLUS_CARD_KEY_WORKFLOW_DONE') {
+        waiter.resolve(message.payload || {});
+        return;
+      }
+      waiter.reject(new Error(normalizeString(message?.payload?.error) || '后台 Plus 卡密工作流失败。'));
+      return;
+    }
+    if (message?.type !== 'AUTO_RUN_STATUS') return;
+    const phase = String(message?.payload?.phase || '').trim().toLowerCase();
+    if (!['complete', 'stopped', 'idle'].includes(phase)) return;
+    const waiter = waitingBackgroundFlow;
+    waitingBackgroundFlow = null;
+    clearTimeout(waiter.timer);
+    getBackgroundState()
+      .then((flowState) => {
+        const workflowStartedAt = Number(flowState?.plusCardKeyWorkflowStartedAt) || 0;
+        const messageSessionId = Number(message?.payload?.sessionId) || 0;
+        const shouldWaitForExplicitPlusEvent = phase !== 'idle'
+          && flowState?.plusCardKeyWorkflow
+          && (workflowStartedAt > 0 || messageSessionId > 0);
+        if (!shouldWaitForExplicitPlusEvent) {
+          return flowState;
+        }
+        waitingBackgroundFlow = waiter;
+        waiter.timer = setTimeout(() => {
+          if (waitingBackgroundFlow !== waiter) return;
+          waitingBackgroundFlow = null;
+          waiter.reject(new Error('等待后台 Plus 卡密终态事件超时。'));
+        }, 30000);
+        return null;
+      })
+      .then((flowState) => {
+        if (!flowState) return;
+        if (waitingBackgroundFlow === waiter) {
+          waitingBackgroundFlow = null;
+        }
+        clearTimeout(waiter.timer);
+        return flowState;
+      })
+      .then((flowState) => {
+        if (!flowState) return;
+        if (!flowState?.plusCardKeyWorkflow && phase === 'idle') {
+          waiter.reject(new Error('后台流程已空闲，但未找到 Plus 卡密工作流上下文。'));
+          return;
+        }
+        if (phase === 'complete') {
+          waiter.resolve(flowState);
+          return;
+        }
+        waiter.reject(new Error(getPlusWorkflowFailureFromState(flowState)));
+      })
+      .catch((error) => waiter.reject(error));
+  }
+
+  function waitUntilBackgroundFlowCompletesOrFails(timeoutMs = 20 * 60 * 1000) {
+    if (waitingBackgroundFlow) {
+      waitingBackgroundFlow.reject(new Error('已有 Plus 卡密后台流程等待中。'));
+      clearTimeout(waitingBackgroundFlow.timer);
+      waitingBackgroundFlow = null;
+    }
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const waiter = waitingBackgroundFlow;
+        waitingBackgroundFlow = null;
+        if (waiter) {
+          waiter.reject(new Error('等待后台 Plus 卡密工作流完成超时。'));
+        }
+      }, timeoutMs);
+      waitingBackgroundFlow = { resolve, reject, timer };
+    });
+  }
+
+  async function startBackgroundWorkflow(entry) {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const automationWindowId = Number(activeTab?.windowId);
+    const response = await chrome.runtime.sendMessage({
+      type: 'START_PLUS_CARD_KEY_WORKFLOW',
+      source: 'sidepanel',
+      payload: {
+        cardKey: entry.cardKey,
+        email: entry.email,
+        mailSecret: entry.mailSecret,
+        ...(Number.isInteger(automationWindowId) && automationWindowId > 0 ? { automationWindowId } : {}),
+      },
+    });
+    if (response?.error) throw new Error(response.error);
+    if (response?.ok === false) throw new Error('后台拒绝启动 Plus 卡密工作流。');
+  }
+
+  async function runNextPlusCardKey() {
+    if (!state.running || autoRunLoopActive) return;
+    autoRunLoopActive = true;
+    try {
+      while (state.running) {
+        const entry = getCurrentEntry();
+        if (!entry) {
+          state.running = false;
+          state.currentEntry = null;
+          await saveState();
+          render();
+          showWorkflowToast('Plus 卡密队列已处理完成。', 'success');
+          break;
+        }
+
+        let finalError = '';
+        let activeEntry = entry;
+        try {
+          const exchanged = entry.email ? entry : await exchangeCardKey(entry);
+          activeEntry = exchanged;
+          throwIfAutoStopped();
+          updateEntry(entry.id, { status: 'running', error: '' });
+          state.currentEntry = exchanged;
+          await saveState();
+          render();
+          await startBackgroundWorkflow(exchanged);
+          await waitUntilBackgroundFlowCompletesOrFails();
+          showWorkflowToast(`Plus 卡密已完成并导入：${exchanged.email}`, 'success', 2600);
+        } catch (error) {
+          finalError = error?.message || String(error);
+          recordFailure(activeEntry, finalError);
+          showWorkflowToast(`Plus 卡密失败，已从队列移除：${finalError}`, 'error', 3600);
+        } finally {
+          removeEntry(entry.id);
+          state.currentEntry = null;
+          if (!state.entries.length) {
+            state.currentId = '';
+          }
+          await saveState();
+          render();
+          await waitForBackgroundIdle();
+        }
+      }
+    } finally {
+      autoRunLoopActive = false;
+      if (state.running && !state.entries.length) {
+        state.running = false;
+        state.currentEntry = null;
+        await saveState();
+        render();
+      }
+    }
+  }
+
+  async function startAutoRun() {
+    if (!state.entries.length) {
+      showWorkflowToast('请先导入卡密。', 'warn');
+      return;
+    }
+    if (state.running) return;
+    state.running = true;
+    state.lastError = '';
+    await saveState();
+    render();
+    runNextPlusCardKey().catch(async (error) => {
+      state.running = false;
+      state.currentEntry = null;
+      state.lastError = error?.message || String(error);
+      await saveState();
+      render();
+      showWorkflowToast(state.lastError || 'Plus 卡密自动流程异常停止。', 'error');
+    });
+  }
+
+  async function stopAutoRun() {
+    state.running = false;
+    state.currentEntry = null;
+    await saveState();
+    render();
+    if (waitingBackgroundFlow) {
+      waitingBackgroundFlow.reject(new Error('用户停止 Plus 卡密自动流程。'));
+      clearTimeout(waitingBackgroundFlow.timer);
+      waitingBackgroundFlow = null;
+    }
+    await chrome.runtime.sendMessage({ type: 'STOP_FLOW', source: 'sidepanel', payload: {} }).catch(() => {});
+    showWorkflowToast('已停止 Plus 卡密自动流程。', 'warn');
+  }
+
+  async function fetchCurrentCode() {
+    const entry = getCurrentEntry();
+    if (!entry) {
+      showWorkflowToast('请先导入卡密。', 'warn');
+      return;
+    }
+    setBusy(true);
+    try {
+      updateEntry(entry.id, { error: '' });
+      render();
+      const result = await executeOnCardSite('fetchCode', []);
+      updateEntry(entry.id, {
+        code: result.code || '',
+        status: 'code_received',
+        error: '',
+      });
+      selectNextPending();
+      await saveState();
+      render();
+      showWorkflowToast(`已获取验证码：${result.code}`, 'success');
+    } catch (error) {
+      updateEntry(entry.id, { status: 'failed', error: error?.message || String(error) });
+      await saveState();
+      render();
+      showWorkflowToast(error?.message || '邮箱取码失败。', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openCardSite() {
+    await chrome.tabs.create({ url: CARD_SITE_URL, active: true });
+  }
+
+  function bindEvents() {
+    $(selectors.importButton)?.addEventListener('click', importCardKeys);
+    $(selectors.startAutoButton)?.addEventListener('click', startAutoRun);
+    $(selectors.stopAutoButton)?.addEventListener('click', stopAutoRun);
+    $(selectors.exchangeButton)?.addEventListener('click', exchangeCurrentEmail);
+    $(selectors.fetchCodeButton)?.addEventListener('click', fetchCurrentCode);
+    $(selectors.openSiteButton)?.addEventListener('click', openCardSite);
+    $(selectors.clearButton)?.addEventListener('click', clearQueue);
+    $(selectors.list)?.addEventListener('click', async (event) => {
+      const button = event.target?.closest?.('button[data-action]');
+      if (!button) return;
+      const item = button.closest('[data-entry-id]');
+      const entryId = item?.dataset?.entryId || '';
+      const entry = state.entries.find((candidate) => candidate.id === entryId);
+      if (!entry) return;
+      const action = button.dataset.action;
+      if (action === 'select') {
+        state.currentId = entry.id;
+      } else if (action === 'skip') {
+        updateEntry(entry.id, { status: 'skipped', error: '' });
+        selectNextPending();
+      }
+      await saveState();
+      render();
+    });
+  }
+
+  function cardSiteInjectedRunner(functionName, args) {
+    const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+    const CODE_PATTERN = /(?:验证码|verification\s*code|code)[\s:：是为-]*([0-9](?:[\s-]?[0-9]){3,7})/i;
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const normalize = (value = '') => String(value || '').trim();
+
+    function isVisible(element) {
+      if (!element) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    }
+
+    function getText(element) {
+      return normalize(element?.innerText || element?.textContent || element?.value || '');
+    }
+
+    function findClickableByText(pattern) {
+      const elements = [...document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], a')];
+      return elements.find((element) => isVisible(element) && pattern.test(getText(element))) || null;
+    }
+
+    function findCardKeyInput() {
+      const textareas = [...document.querySelectorAll('textarea')].filter(isVisible);
+      if (textareas[0]) return textareas[0];
+      const inputs = [...document.querySelectorAll('input:not([type="hidden"]):not([type="button"]):not([type="submit"])')].filter(isVisible);
+      return inputs.find((input) => /卡密|密钥|秘钥|key/i.test(input.placeholder || input.name || input.id || '')) || inputs[0] || null;
+    }
+
+    function getFieldLabel(element) {
+      const parts = [
+        element?.placeholder,
+        element?.name,
+        element?.id,
+        element?.getAttribute?.('aria-label'),
+      ];
+      const label = element?.labels?.[0]?.innerText || element?.closest?.('label')?.innerText || '';
+      if (label) parts.push(label);
+      return normalize(parts.filter(Boolean).join(' '));
+    }
+
+    function getVisibleTextFields() {
+      return [...document.querySelectorAll('input:not([type="hidden"]):not([type="button"]):not([type="submit"]), textarea')]
+        .filter(isVisible);
+    }
+
+    function getFieldValue(element) {
+      return normalize(element?.value || '');
+    }
+
+    function findEmailField(cardKeyInput = null) {
+      const fields = getVisibleTextFields().filter((field) => field !== cardKeyInput);
+      return fields.find((field) => /邮箱|email|mail/i.test(getFieldLabel(field)) && EMAIL_PATTERN.test(getFieldValue(field)))
+        || fields.find((field) => EMAIL_PATTERN.test(getFieldValue(field)))
+        || null;
+    }
+
+    function findSecretField(cardKeyInput = null, emailField = null) {
+      const fields = getVisibleTextFields().filter((field) => field !== cardKeyInput && field !== emailField);
+      return fields.find((field) => /秘钥|密钥|secret|key/i.test(getFieldLabel(field)) && /^[A-Z0-9]{8,}$/i.test(getFieldValue(field)))
+        || fields.find((field) => /^[A-Z0-9]{8,}$/i.test(getFieldValue(field)) && !EMAIL_PATTERN.test(getFieldValue(field)))
+        || null;
+    }
+
+    function setNativeValue(element, value) {
+      const proto = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (setter) setter.call(element, value);
+      else element.value = value;
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function extractEmail(cardKeyInput = null, previousEmail = '') {
+      const emailField = findEmailField(cardKeyInput);
+      const fieldEmail = normalize(getFieldValue(emailField).match(EMAIL_PATTERN)?.[0] || '');
+      if (fieldEmail && fieldEmail !== previousEmail) {
+        return fieldEmail;
+      }
+      const textEmail = normalize(document.body.innerText).match(EMAIL_PATTERN)?.[0] || '';
+      return textEmail && textEmail !== previousEmail ? textEmail : '';
+    }
+
+    function extractMailSecret(email = '', cardKeyInput = null, previousSecret = '') {
+      const emailField = findEmailField(cardKeyInput);
+      const secretField = findSecretField(cardKeyInput, emailField);
+      const fieldSecret = getFieldValue(secretField);
+      if (fieldSecret && fieldSecret !== previousSecret && fieldSecret !== email && !EMAIL_PATTERN.test(fieldSecret)) {
+        return fieldSecret;
+      }
+      const values = getVisibleTextFields()
+        .filter((input) => input !== cardKeyInput && input !== emailField)
+        .map(getFieldValue)
+        .filter(Boolean)
+        .filter((value) => value !== email && value !== previousSecret && !EMAIL_PATTERN.test(value));
+      return values.find((value) => /^[A-Z0-9]{8,}$/i.test(value)) || '';
+    }
+
+    function clearPreviousExchangeOutputs(cardKeyInput = null) {
+      const emailField = findEmailField(cardKeyInput);
+      const secretField = findSecretField(cardKeyInput, emailField);
+      const previousEmail = normalize(getFieldValue(emailField).match(EMAIL_PATTERN)?.[0] || '');
+      const previousSecret = getFieldValue(secretField);
+      if (emailField) setNativeValue(emailField, '');
+      if (secretField) setNativeValue(secretField, '');
+      return { previousEmail, previousSecret };
+    }
+
+    function getCurrentExchangeSnapshot(cardKeyInput = null) {
+      const emailField = findEmailField(cardKeyInput);
+      const secretField = findSecretField(cardKeyInput, emailField);
+      return {
+        email: normalize(getFieldValue(emailField).match(EMAIL_PATTERN)?.[0] || ''),
+        mailSecret: getFieldValue(secretField),
+      };
+    }
+
+    function extractAnyEmail() {
+      const inputs = [...document.querySelectorAll('input, textarea')];
+      for (const input of inputs) {
+        const matched = getFieldValue(input).match(EMAIL_PATTERN);
+        if (matched?.[0]) return matched[0];
+      }
+      return normalize(document.body.innerText).match(EMAIL_PATTERN)?.[0] || '';
+    }
+
+    function extractAnyMailSecret(email = '') {
+      const values = [...document.querySelectorAll('input, textarea')]
+        .map(getFieldValue)
+        .filter(Boolean)
+        .filter((value) => value !== email && !EMAIL_PATTERN.test(value));
+      return values.find((value) => /^[A-Z0-9]{8,}$/i.test(value)) || '';
+    }
+
+    function extractCode() {
+      const text = normalize(document.body.innerText).replace(/\s+/g, ' ');
+      const keywordMatch = text.match(CODE_PATTERN);
+      if (keywordMatch?.[1]) return keywordMatch[1].replace(/\D+/g, '');
+      const looseMatch = text.match(/\b(\d{4,8})\b/);
+      return looseMatch?.[1] || '';
+    }
+
+    async function waitFor(check, timeoutMs, errorMessage) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        const value = check();
+        if (value) return value;
+        await sleep(300);
+      }
+      throw new Error(errorMessage);
+    }
+
+    async function exchange(cardKey) {
+      const input = findCardKeyInput();
+      if (!input) throw new Error('未找到卡密输入框。');
+      const before = getCurrentExchangeSnapshot(input);
+      const cleared = clearPreviousExchangeOutputs(input);
+      const previousEmail = before.email || cleared.previousEmail;
+      const previousSecret = before.mailSecret || cleared.previousSecret;
+      setNativeValue(input, cardKey);
+      const button = findClickableByText(/换出邮箱|换出.*秘钥|换出.*密钥|兑换|提取/i);
+      if (!button) throw new Error('未找到“换出邮箱秘钥”按钮。');
+      button.click();
+      const email = await waitFor(
+        () => extractEmail(input, previousEmail),
+        20000,
+        previousEmail
+          ? `换出邮箱超时，页面仍停留在上一轮邮箱：${previousEmail}`
+          : '换出邮箱超时，未识别到邮箱地址。'
+      );
+      const mailSecret = await waitFor(
+        () => extractMailSecret(email, input, previousSecret),
+        10000,
+        '已识别邮箱，但未识别到新的邮箱秘钥。'
+      );
+      return { email, mailSecret };
+    }
+
+    async function fetchCode() {
+      const button = findClickableByText(/邮箱取码|取码|获取验证码/i);
+      if (!button) throw new Error('未找到“邮箱取码”按钮。');
+      button.click();
+      const code = await waitFor(extractCode, 60000, '邮箱取码超时，未识别到验证码。');
+      return { code };
+    }
+
+    return Promise.resolve()
+      .then(() => {
+        if (functionName === 'exchange') return exchange(args[0]);
+        if (functionName === 'fetchCode') return fetchCode();
+        throw new Error(`未知 Plus 卡密页面动作：${functionName}`);
+      })
+      .catch((error) => ({ error: error?.message || String(error) }));
+  }
+
+  function init() {
+    if (!$(selectors.importButton)) return;
+    bindEvents();
+    chrome.runtime.onMessage.addListener(settleWaitingBackgroundFlow);
+    loadState().catch((error) => {
+      console.warn('[PlusCardKey] load failed', error);
+      render();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+})(typeof window !== 'undefined' ? window : globalThis);

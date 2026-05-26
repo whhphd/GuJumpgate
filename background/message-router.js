@@ -422,6 +422,24 @@
         : '';
     }
 
+    function normalizePlusCardKeyWorkflowPayload(payload = {}) {
+      const cardKey = String(payload?.cardKey || payload?.plusCardKey || '').trim();
+      const email = String(payload?.email || '').trim();
+      const mailSecret = String(
+        payload?.mailSecret
+        || payload?.emailSecret
+        || payload?.plusCardKeyMailSecret
+        || ''
+      ).trim();
+      if (!cardKey) {
+        throw new Error('Plus 卡密工作流缺少 cardKey。');
+      }
+      if (!email) {
+        throw new Error('Plus 卡密工作流缺少换出的邮箱。');
+      }
+      return { cardKey, email, mailSecret };
+    }
+
     function hasPhoneSignupIdentity(state = {}) {
       const identifierType = String(state?.accountIdentifierType || '').trim().toLowerCase();
       return Boolean(
@@ -463,7 +481,7 @@
         return null;
       }
       const numeric = Number(value);
-      return Number.isInteger(numeric) && numeric >= 0 ? numeric : null;
+      return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
     }
 
     function resolveAutomationWindowIdFromMessage(message = {}, sender = {}) {
@@ -1356,6 +1374,60 @@
           const mode = message.payload?.mode === 'continue' ? 'continue' : 'restart';
           await setState({ autoRunSkipFailures, autoRunRetryNonFreeTrial, autoRunRetryPaypalCallback });
           startAutoRunLoop(totalRuns, { autoRunSkipFailures, autoRunRetryNonFreeTrial, autoRunRetryPaypalCallback, mode });
+          return { ok: true };
+        }
+
+        case 'START_PLUS_CARD_KEY_WORKFLOW': {
+          clearStopRequest();
+          if (message.source === 'sidepanel') {
+            await lockAutomationWindowFromMessage(message, sender);
+          }
+          let state = await ensureManualInteractionAllowed('开始 Plus 卡密工作流');
+          if (Object.values(state.nodeStatuses || {}).some((status) => status === 'running')) {
+            throw new Error('当前有步骤正在执行，无法开始 Plus 卡密工作流。');
+          }
+          if (getPendingAutoRunTimerPlan(state)) {
+            throw new Error('已有自动运行倒计时计划，请先取消或立即开始。');
+          }
+
+          const { cardKey, email, mailSecret } = normalizePlusCardKeyWorkflowPayload(message.payload || {});
+          await resetState();
+          await setState({
+            plusCardKeyWorkflow: true,
+            plusCardKey: cardKey,
+            plusCardKeyEmail: email,
+            plusCardKeyMailSecret: mailSecret,
+            plusCardKeyWorkflowStartedAt: Date.now(),
+            panelMode: 'sub2api',
+            plusModeEnabled: true,
+            plusAccountAccessStrategy: 'oauth',
+            plusPaymentMethod: 'paypal',
+            signupMethod: 'email',
+            resolvedSignupMethod: 'email',
+            email,
+            accountIdentifierType: 'email',
+            accountIdentifier: email,
+            registrationEmailState: {
+              current: email,
+              previous: '',
+              source: 'plus_card_key',
+            },
+            autoRunSkipFailures: false,
+            autoRunRetryNonFreeTrial: false,
+            autoRunRetryPaypalCallback: false,
+          });
+          state = await getState();
+          const autoRunStartValidation = validateAutoRunStart(state, { state });
+          if (autoRunStartValidation?.ok === false) {
+            throw new Error(autoRunStartValidation.errors?.[0]?.message || '当前设置不支持启动 Plus 卡密工作流。');
+          }
+          await addLog(`Plus 卡密工作流：已载入 ${email}，准备从 OAuth 登录链路开始。`, 'info');
+          startAutoRunLoop(1, {
+            autoRunSkipFailures: false,
+            autoRunRetryNonFreeTrial: false,
+            autoRunRetryPaypalCallback: false,
+            mode: 'continue',
+          });
           return { ok: true };
         }
 

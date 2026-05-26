@@ -293,6 +293,7 @@
   );
   const PLUS_GPC_PHONE_STEP_DEFINITIONS = createOpenAiSteps(PLUS_GPC_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE);
   const PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = createOpenAiSteps(PLUS_GPC_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true });
+  const PLUS_CARD_KEY_SUB2API_STEP_DEFINITIONS = createOpenAiAuthTail(7, 70, SIGNUP_METHOD_EMAIL);
 
   const PHONE_SIGNUP_TITLE_OVERRIDES = Object.freeze({
     'submit-signup-email': '注册并输入手机号',
@@ -346,6 +347,9 @@
     const signupMethod = getResolvedSignupMethod(options);
     const reloginAfterBindEmail = signupMethod === SIGNUP_METHOD_PHONE
       && isPhoneSignupReloginAfterBindEmailEnabled(options);
+    if (options?.plusCardKeyWorkflow) {
+      return PLUS_CARD_KEY_SUB2API_STEP_DEFINITIONS;
+    }
     if (panelMode === LOCAL_CPA_JSON_NO_RT_PANEL_MODE) {
       return [
         ...PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS,
@@ -474,6 +478,7 @@
           ...PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS,
           ...PLUS_GPC_PHONE_STEP_DEFINITIONS,
           ...PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+          ...PLUS_CARD_KEY_SUB2API_STEP_DEFINITIONS,
         ]) {
           keyed.set(`${step.id}:${step.key}`, step);
         }
@@ -670,6 +675,7 @@
     PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS,
     PLUS_GPC_PHONE_STEP_DEFINITIONS,
     PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+    PLUS_CARD_KEY_SUB2API_STEP_DEFINITIONS,
     SIGNUP_METHOD_EMAIL,
     SIGNUP_METHOD_PHONE,
     getAllSteps,

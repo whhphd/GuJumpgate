@@ -1860,6 +1860,34 @@
     </div>
   </section>
 
+  <section id="plus-card-key-section">
+    <div class="data-card">
+      <div class="section-mini-header">
+        <div class="section-mini-copy">
+          <span class="section-label">Plus 卡密绑定</span>
+          <span class="data-value">独立工作流：卡密换邮箱 / 邮箱取码，不影响原注册流程。</span>
+        </div>
+        <div class="section-mini-actions">
+          <button id="btn-plus-card-key-open-site" class="btn btn-outline btn-xs" type="button">打开取码站</button>
+          <button id="btn-plus-card-key-clear" class="btn btn-ghost btn-xs" type="button">清空</button>
+        </div>
+      </div>
+      <textarea id="input-plus-card-key-list" class="data-textarea mono" rows="4" placeholder="一行一个卡密，例如：&#10;9H9X-TJM6-G4ZQ&#10;MJGM-DNZB-B79S"></textarea>
+      <div class="data-inline data-value-actions">
+        <button id="btn-plus-card-key-import" class="btn btn-primary btn-sm" type="button">导入队列</button>
+        <button id="btn-plus-card-key-start-auto" class="btn btn-success btn-sm" type="button">开始自动跑</button>
+        <button id="btn-plus-card-key-stop-auto" class="btn btn-danger btn-sm" type="button" disabled>停止</button>
+        <button id="btn-plus-card-key-exchange" class="btn btn-success btn-sm" type="button">换出当前邮箱</button>
+        <button id="btn-plus-card-key-fetch-code" class="btn btn-outline btn-sm" type="button">邮箱取码</button>
+      </div>
+      <div class="icloud-card">
+        <div id="plus-card-key-summary" class="icloud-summary">未导入卡密。</div>
+        <div id="plus-card-key-current" class="data-value mono">当前：无</div>
+        <div id="plus-card-key-list" class="luckmail-list"></div>
+      </div>
+    </div>
+  </section>
+
   <section id="steps-section">
     <div class="steps-header">
       <span class="section-label">流程</span>
@@ -1978,6 +2006,7 @@
   <script src="ip-proxy-provider-711proxy.js"></script>
   <script src="ip-proxy-panel.js"></script>
   <script src="account-records-manager.js"></script>
+  <script src="plus-card-key-workflow.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 
