@@ -990,9 +990,13 @@
       return normalize(element?.innerText || element?.textContent || element?.value || '');
     }
 
+    function getClickableElements() {
+      return [...document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], a')]
+        .filter(isVisible);
+    }
+
     function findClickableByText(pattern) {
-      const elements = [...document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], a')];
-      return elements.find((element) => isVisible(element) && pattern.test(getText(element))) || null;
+      return getClickableElements().find((element) => pattern.test(getText(element))) || null;
     }
 
     function findCardKeyInput() {
@@ -1071,6 +1075,58 @@
       return values.find((value) => /^[A-Z0-9]{8,}$/i.test(value)) || '';
     }
 
+    function isBatchPickupPanelActive() {
+      const text = normalize(document.body.innerText || '').replace(/\s+/g, ' ');
+      return /批量取件|兑换码列表|ZIP\s*下载|一行一个兑换码/i.test(text)
+        && !/换出邮箱|邮箱秘钥|邮箱密钥/i.test(text);
+    }
+
+    function isEmailCodeSwitchElement(element) {
+      const text = getText(element).replace(/\s+/g, ' ');
+      return /邮箱取码/i.test(text) && /登录网页/i.test(text);
+    }
+
+    function findEmailCodeSwitchButton() {
+      const elements = getClickableElements();
+      return elements.find(isEmailCodeSwitchElement)
+        || elements.find((element) => /邮箱取码/i.test(getText(element)) && !/验证码|获取验证码/i.test(getText(element)))
+        || null;
+    }
+
+    function findExchangeButton() {
+      return findClickableByText(/换出邮箱|换出.*秘钥|换出.*密钥|兑换|提取/i);
+    }
+
+    function findFetchCodeButton() {
+      const elements = getClickableElements()
+        .filter((element) => /邮箱取码|取码|获取验证码/i.test(getText(element)));
+      return elements.find((element) => !isEmailCodeSwitchElement(element))
+        || elements[0]
+        || null;
+    }
+
+    function isExchangePanelReady() {
+      return !isBatchPickupPanelActive() && Boolean(findCardKeyInput() && findExchangeButton());
+    }
+
+    function isFetchCodePanelReady() {
+      return !isBatchPickupPanelActive() && Boolean(findFetchCodeButton());
+    }
+
+    async function ensureEmailCodePanel(mode = 'exchange') {
+      const isReady = () => (mode === 'fetchCode' ? isFetchCodePanelReady() : isExchangePanelReady());
+      if (isReady()) return;
+      const switchButton = findEmailCodeSwitchButton();
+      if (!switchButton) return;
+      switchButton.click();
+      await waitFor(
+        isReady,
+        5000,
+        '切换到“邮箱取码/登录网页”超时，未找到单张卡密换邮箱表单。',
+        { pollMs: 100 }
+      );
+    }
+
     function clearPreviousExchangeOutputs(cardKeyInput = null) {
       const emailField = findEmailField(cardKeyInput);
       const secretField = findSecretField(cardKeyInput, emailField);
@@ -1136,6 +1192,7 @@
       const clickTimeoutMs = Math.max(1000, Math.floor(Number(options.clickTimeoutMs) || 6000));
       const retryDelayMs = Math.max(0, Math.floor(Number(options.retryDelayMs) || 1800));
       const pollMs = Math.max(1, Math.floor(Number(options.pollMs) || 300));
+      await ensureEmailCodePanel('exchange');
       const input = findCardKeyInput();
       if (!input) throw new Error('未找到卡密输入框。');
       const before = getCurrentExchangeSnapshot(input);
@@ -1143,7 +1200,7 @@
       const previousEmail = before.email || cleared.previousEmail;
       const previousSecret = before.mailSecret || cleared.previousSecret;
       setNativeValue(input, cardKey);
-      const button = findClickableByText(/换出邮箱|换出.*秘钥|换出.*密钥|兑换|提取/i);
+      const button = findExchangeButton();
       if (!button) throw new Error('未找到“换出邮箱秘钥”按钮。');
       let lastError = null;
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -1214,7 +1271,8 @@
       const clickTimeoutMs = Math.max(1000, Math.floor(Number(options.clickTimeoutMs) || 6000));
       const retryDelayMs = Math.max(0, Math.floor(Number(options.retryDelayMs) || 1800));
       const pollMs = Math.max(1, Math.floor(Number(options.pollMs) || 300));
-      const button = findClickableByText(/邮箱取码|取码|获取验证码/i);
+      await ensureEmailCodePanel('fetchCode');
+      const button = findFetchCodeButton();
       if (!button) throw new Error('未找到“邮箱取码”按钮。');
       let lastError = null;
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
