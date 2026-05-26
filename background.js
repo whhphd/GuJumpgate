@@ -14151,6 +14151,11 @@ const messageRouter = self.MultiPageBackgroundMessageRouter?.createMessageRouter
   clearAccountRunHistory: (...args) => clearAndBroadcastAccountRunHistory(...args),
   deleteAccountRunHistoryRecords: (...args) => deleteAndBroadcastAccountRunHistoryRecords(...args),
   clearAutoRunTimerAlarm,
+  clearOpenAiCookiesForPlusCardKeyWorkflow: () => self.MultiPageBackgroundStep1?.clearOpenAiCookies?.(chrome, {
+    addLog,
+    label: 'Plus 卡密工作流',
+    actionLabel: 'OAuth 登录前',
+  }),
   clearFreeReusablePhoneActivation,
   clearLuckmailRuntimeState,
   clearStopRequest,

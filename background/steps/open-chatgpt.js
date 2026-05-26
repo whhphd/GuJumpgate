@@ -112,6 +112,39 @@
     }
   }
 
+  async function clearOpenAiCookies(chromeApi, options = {}) {
+    const addLog = typeof options.addLog === 'function' ? options.addLog : async () => {};
+    const label = String(options.label || '步骤 1').trim() || '步骤 1';
+    const actionLabel = String(options.actionLabel || '打开 ChatGPT 官网前').trim() || '打开 ChatGPT 官网前';
+    if (!chromeApi?.cookies?.getAll || !chromeApi.cookies?.remove) {
+      await addLog(`${label}：当前浏览器不支持 cookies API，跳过 ChatGPT / OpenAI cookies 清理。`, 'warn');
+      return { removedCount: 0, skipped: true };
+    }
+
+    await addLog(`${label}：${actionLabel}清理 ChatGPT / OpenAI cookies...`, 'info');
+    const cookies = await collectStep1Cookies(chromeApi);
+    let removedCount = 0;
+    for (const cookie of cookies) {
+      if (await removeStep1Cookie(chromeApi, cookie)) {
+        removedCount += 1;
+      }
+    }
+
+    if (chromeApi.browsingData?.removeCookies) {
+      try {
+        await chromeApi.browsingData.removeCookies({
+          since: 0,
+          origins: STEP1_COOKIE_CLEAR_ORIGINS,
+        });
+      } catch (error) {
+        await addLog(`${label}：browsingData 补扫 cookies 失败：${getStep1ErrorMessage(error)}`, 'warn');
+      }
+    }
+
+    await addLog(`${label}：已清理 ${removedCount} 个 ChatGPT / OpenAI cookies。`, 'ok');
+    return { removedCount, skipped: false };
+  }
+
   function createStep1Executor(deps = {}) {
     const {
       addLog,
@@ -121,32 +154,11 @@
     } = deps;
 
     async function clearOpenAiCookiesBeforeStep1() {
-      if (!chromeApi?.cookies?.getAll || !chromeApi.cookies?.remove) {
-        await addLog('步骤 1：当前浏览器不支持 cookies API，跳过打开官网前 cookie 清理。', 'warn');
-        return;
-      }
-
-      await addLog('步骤 1：打开 ChatGPT 官网前清理 ChatGPT / OpenAI cookies...', 'info');
-      const cookies = await collectStep1Cookies(chromeApi);
-      let removedCount = 0;
-      for (const cookie of cookies) {
-        if (await removeStep1Cookie(chromeApi, cookie)) {
-          removedCount += 1;
-        }
-      }
-
-      if (chromeApi.browsingData?.removeCookies) {
-        try {
-          await chromeApi.browsingData.removeCookies({
-            since: 0,
-            origins: STEP1_COOKIE_CLEAR_ORIGINS,
-          });
-        } catch (error) {
-          await addLog(`步骤 1：browsingData 补扫 cookies 失败：${getStep1ErrorMessage(error)}`, 'warn');
-        }
-      }
-
-      await addLog(`步骤 1：已清理 ${removedCount} 个 ChatGPT / OpenAI cookies。`, 'ok');
+      return clearOpenAiCookies(chromeApi, {
+        addLog,
+        label: '步骤 1',
+        actionLabel: '打开 ChatGPT 官网前',
+      });
     }
 
     async function executeStep1() {
@@ -159,5 +171,8 @@
     return { executeStep1 };
   }
 
-  return { createStep1Executor };
+  return {
+    clearOpenAiCookies,
+    createStep1Executor,
+  };
 });

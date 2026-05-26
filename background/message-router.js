@@ -16,6 +16,7 @@
       clearAccountRunHistory,
       deleteAccountRunHistoryRecords,
       clearAutoRunTimerAlarm,
+      clearOpenAiCookiesForPlusCardKeyWorkflow = null,
       clearFreeReusablePhoneActivation,
       clearLuckmailRuntimeState,
       clearStopRequest,
@@ -1416,6 +1417,13 @@
             autoRunRetryNonFreeTrial: false,
             autoRunRetryPaypalCallback: false,
           });
+          if (typeof clearOpenAiCookiesForPlusCardKeyWorkflow === 'function') {
+            try {
+              await clearOpenAiCookiesForPlusCardKeyWorkflow();
+            } catch (error) {
+              await addLog(`Plus 卡密工作流：清理 OpenAI / ChatGPT cookies 失败，已跳过并继续：${error?.message || error}`, 'warn');
+            }
+          }
           state = await getState();
           const autoRunStartValidation = validateAutoRunStart(state, { state });
           if (autoRunStartValidation?.ok === false) {
