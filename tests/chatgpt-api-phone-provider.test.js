@@ -78,6 +78,13 @@ test('ChatGPT API provider keeps +1 country code and infers USA for 11-digit num
   assert.equal(activation.countryLabel, 'USA');
 });
 
+test('ChatGPT API provider extracts Chinese OpenAI verification code response', () => {
+  assert.equal(
+    globalThis.PhoneSmsChatGptApiProvider.extractVerificationCode('YES|您的 OpenAI 验证代码是：302995|2026-05-26 23:41:31'),
+    '302995'
+  );
+});
+
 test('ChatGPT API provider disables entry after repeated polling failures', async () => {
   const key = '628111111111----https://example.test/api/sms/1';
   const initialState = createState({
