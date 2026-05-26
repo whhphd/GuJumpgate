@@ -1051,19 +1051,25 @@
       element.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    function extractEmail(cardKeyInput = null, previousEmail = '') {
+    function extractEmail(cardKeyInput = null, previousEmail = '', expectedEmail = '') {
       const emailField = findEmailField(cardKeyInput);
       const fieldEmail = normalize(getFieldValue(emailField).match(EMAIL_PATTERN)?.[0] || '');
+      if (expectedEmail && fieldEmail && fieldEmail.toLowerCase() === expectedEmail.toLowerCase()) {
+        return fieldEmail;
+      }
       if (fieldEmail && fieldEmail !== previousEmail) {
         return fieldEmail;
       }
       return '';
     }
 
-    function extractMailSecret(email = '', cardKeyInput = null, previousSecret = '') {
+    function extractMailSecret(email = '', cardKeyInput = null, previousSecret = '', expectedSecret = '') {
       const emailField = findEmailField(cardKeyInput);
       const secretField = findSecretField(cardKeyInput, emailField);
       const fieldSecret = getFieldValue(secretField);
+      if (expectedSecret && fieldSecret && fieldSecret === expectedSecret) {
+        return fieldSecret;
+      }
       if (fieldSecret && fieldSecret !== previousSecret && fieldSecret !== email && !EMAIL_PATTERN.test(fieldSecret)) {
         return fieldSecret;
       }
@@ -1071,7 +1077,10 @@
         .filter((input) => input !== cardKeyInput && input !== emailField)
         .map(getFieldValue)
         .filter(Boolean)
-        .filter((value) => value !== email && value !== previousSecret && !EMAIL_PATTERN.test(value));
+        .filter((value) => value !== email && (expectedSecret ? true : value !== previousSecret) && !EMAIL_PATTERN.test(value));
+      if (expectedSecret && values.includes(expectedSecret)) {
+        return expectedSecret;
+      }
       return values.find((value) => /^[A-Z0-9]{8,}$/i.test(value)) || '';
     }
 
@@ -1192,6 +1201,8 @@
       const clickTimeoutMs = Math.max(1000, Math.floor(Number(options.clickTimeoutMs) || 6000));
       const retryDelayMs = Math.max(0, Math.floor(Number(options.retryDelayMs) || 1800));
       const pollMs = Math.max(1, Math.floor(Number(options.pollMs) || 300));
+      const expectedEmail = normalize(options.expectedEmail || '');
+      const expectedSecret = normalize(options.expectedSecret || '');
       await ensureEmailCodePanel('exchange');
       const input = findCardKeyInput();
       if (!input) throw new Error('未找到卡密输入框。');
@@ -1210,17 +1221,19 @@
         await sleep(settleMs);
         try {
           const email = await waitFor(
-            () => extractEmail(input, previousEmail),
+            () => extractEmail(input, previousEmail, expectedEmail),
             clickTimeoutMs,
-            previousEmail
+            expectedEmail
+              ? `换出邮箱超时，未恢复到预期邮箱：${expectedEmail}`
+              : previousEmail
               ? `换出邮箱超时，页面仍停留在上一轮邮箱：${previousEmail}`
               : '换出邮箱超时，未识别到邮箱地址。',
             { abortOnTransientError: true, pollMs }
           );
           const mailSecret = await waitFor(
-            () => extractMailSecret(email, input, previousSecret),
+            () => extractMailSecret(email, input, previousSecret, expectedSecret),
             clickTimeoutMs,
-            '已识别邮箱，但未识别到新的邮箱秘钥。',
+            expectedSecret ? '已识别邮箱，但未恢复到预期邮箱秘钥。' : '已识别邮箱，但未识别到新的邮箱秘钥。',
             { abortOnTransientError: true, pollMs }
           );
           return { email, mailSecret };
@@ -1246,7 +1259,11 @@
       const options = payload?.options && typeof payload.options === 'object' ? payload.options : {};
       if (!cardKey) throw new Error('恢复卡密上下文缺少卡密。');
       if (!expectedEmail) throw new Error('恢复卡密上下文缺少邮箱。');
-      const result = await exchange(cardKey, options);
+      const result = await exchange(cardKey, {
+        ...options,
+        expectedEmail,
+        expectedSecret,
+      });
       const restoredEmail = normalize(result?.email || '');
       if (!restoredEmail) {
         throw new Error('卡密已重新提交，但未恢复邮箱上下文。');
