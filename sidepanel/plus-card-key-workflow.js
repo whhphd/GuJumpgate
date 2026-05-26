@@ -148,6 +148,7 @@
       case 'code_received': return '已取码';
       case 'running': return '自动处理中';
       case 'failed': return '失败';
+      case 'paused': return '已暂停待重试';
       case 'skipped': return '已跳过';
       default: return '待处理';
     }
@@ -272,6 +273,42 @@
     state.lastError = failure.error;
   }
 
+  function classifyPlusCardKeyFailure(errorMessage = '') {
+    const message = normalizeString(errorMessage);
+    const preservePatterns = [
+      /用户停止|已停止|stop(?:ped)?|cancel(?:led)?|abort/i,
+      /网络|network|failed to fetch|timeout|超时|timed out|net::|err_/i,
+      /cloudflare|cf|安全验证|人机验证/i,
+      /no window with id|自动任务窗口已不可用|窗口已关闭|tab.*closed|标签页已关闭/i,
+      /后台.*空闲.*超时|等待后台.*超时|终态事件超时|流程.*未空闲/i,
+      /取码站.*(?:超时|未找到|加载|不可访问)|页面.*(?:加载|未就绪|未找到)/i,
+      /service worker|extension context invalidated|receiving end does not exist/i,
+    ];
+    if (preservePatterns.some((pattern) => pattern.test(message))) {
+      return {
+        removeEntry: false,
+        stopQueue: true,
+        status: 'paused',
+        reason: 'transient',
+      };
+    }
+
+    const removePatterns = [
+      /卡密.*(?:无效|错误|不存在|已使用|已兑换|失效|过期)/i,
+      /invalid.*(?:card|key|code)|card.*(?:invalid|used|expired)/i,
+      /验证码.*(?:被页面拒绝|错误|无效)|invalid.*verification.*code/i,
+      /SUB2API.*(?:缺少|尚未配置|未配置|登录失败|回调交换)|尚未配置 SUB2API/i,
+      /手机号.*(?:绑定失败|验证失败)|phone.*(?:verification|bind).*failed/i,
+      /无法继续自动授权|当前流程无法继续自动授权/i,
+    ];
+    return {
+      removeEntry: removePatterns.some((pattern) => pattern.test(message)),
+      stopQueue: false,
+      status: 'failed',
+      reason: 'confirmed',
+    };
+  }
+
   function throwIfAutoStopped() {
     if (!state.running) {
       throw new Error('用户停止 Plus 卡密自动流程。');
@@ -284,6 +321,44 @@
       return;
     }
     console.log('[PlusCardKey]', message);
+  }
+
+  async function ensureIncognitoAccess() {
+    if (!chrome?.extension?.isAllowedIncognitoAccess) {
+      return;
+    }
+    const allowed = await chrome.extension.isAllowedIncognitoAccess();
+    if (!allowed) {
+      throw new Error('插件尚未允许在无痕模式下运行，请先在 Chrome 扩展详情页开启“允许在无痕模式下运行”。');
+    }
+  }
+
+  async function focusTab(tab) {
+    if (!tab?.id) return;
+    if (Number.isInteger(tab.windowId) && tab.windowId > 0 && chrome?.windows?.update) {
+      await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+    }
+    await chrome.tabs.update(tab.id, { active: true });
+  }
+
+  async function createIncognitoCardSiteTab() {
+    await ensureIncognitoAccess();
+    if (!chrome?.windows?.create) {
+      throw new Error('当前运行环境不支持创建无痕取码站窗口。');
+    }
+    const win = await chrome.windows.create({
+      url: CARD_SITE_URL,
+      incognito: true,
+      focused: true,
+      type: 'normal',
+    });
+    const tab = Array.isArray(win?.tabs)
+      ? win.tabs.find((candidate) => candidate?.id)
+      : null;
+    if (!tab?.id) {
+      throw new Error('已创建无痕窗口，但未找到取码站标签页。');
+    }
+    return tab;
   }
 
   async function getCardSiteTab() {
@@ -324,19 +399,15 @@
       });
     }
 
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const activeTab = tabs.find((tab) => tab?.id && /plus\.keria\.cc\.cd/i.test(tab.url || ''));
-    if (activeTab?.id) {
-      return activeTab.status === 'complete' ? activeTab : waitForTabReady(activeTab.id);
-    }
-
+    await ensureIncognitoAccess();
     const siteTabs = await chrome.tabs.query({ url: '*://plus.keria.cc.cd/*' });
-    if (siteTabs[0]?.id) {
-      await chrome.tabs.update(siteTabs[0].id, { active: true });
-      return siteTabs[0].status === 'complete' ? siteTabs[0] : waitForTabReady(siteTabs[0].id);
+    const incognitoTab = siteTabs.find((tab) => tab?.id && tab.incognito);
+    if (incognitoTab?.id) {
+      await focusTab(incognitoTab);
+      return incognitoTab.status === 'complete' ? incognitoTab : waitForTabReady(incognitoTab.id);
     }
 
-    const created = await chrome.tabs.create({ url: CARD_SITE_URL, active: true });
+    const created = await createIncognitoCardSiteTab();
     return waitForTabReady(created?.id);
   }
 
@@ -555,6 +626,7 @@
 
         let finalError = '';
         let activeEntry = entry;
+        let shouldRemoveEntry = true;
         try {
           const exchanged = entry.email ? entry : await exchangeCardKey(entry);
           activeEntry = exchanged;
@@ -568,17 +640,33 @@
           showWorkflowToast(`Plus 卡密已完成并导入：${exchanged.email}`, 'success', 2600);
         } catch (error) {
           finalError = error?.message || String(error);
-          recordFailure(activeEntry, finalError);
-          showWorkflowToast(`Plus 卡密失败，已从队列移除：${finalError}`, 'error', 3600);
+          const failure = classifyPlusCardKeyFailure(finalError);
+          shouldRemoveEntry = Boolean(failure.removeEntry);
+          if (shouldRemoveEntry) {
+            recordFailure(activeEntry, finalError);
+            showWorkflowToast(`Plus 卡密确认失败，已从队列移除：${finalError}`, 'error', 3600);
+          } else {
+            state.running = false;
+            state.currentId = entry.id;
+            state.currentEntry = null;
+            state.lastError = finalError;
+            updateEntry(entry.id, {
+              status: failure.status || 'paused',
+              error: finalError,
+            });
+            showWorkflowToast(`Plus 卡密已保留并暂停，稍后可重试：${finalError}`, 'warn', 4200);
+          }
         } finally {
-          removeEntry(entry.id);
+          if (shouldRemoveEntry) {
+            removeEntry(entry.id);
+          }
           state.currentEntry = null;
           if (!state.entries.length) {
             state.currentId = '';
           }
           await saveState();
           render();
-          await waitForBackgroundIdle();
+          await waitForBackgroundIdle().catch(() => {});
         }
       }
     } finally {
@@ -657,7 +745,8 @@
   }
 
   async function openCardSite() {
-    await chrome.tabs.create({ url: CARD_SITE_URL, active: true });
+    const tab = await getCardSiteTab();
+    await focusTab(tab);
   }
 
   function bindEvents() {
@@ -898,4 +987,9 @@
   } else {
     init();
   }
+
+  root.PlusCardKeyWorkflow = {
+    ...(root.PlusCardKeyWorkflow || {}),
+    classifyFailure: classifyPlusCardKeyFailure,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

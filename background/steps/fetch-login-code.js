@@ -103,14 +103,28 @@
       return /^\d{4,8}$/.test(digits) ? digits : '';
     }
 
+    async function ensurePlusCardKeyIncognitoAccess(visibleStep) {
+      if (!chrome?.extension?.isAllowedIncognitoAccess) {
+        return;
+      }
+      const allowed = await chrome.extension.isAllowedIncognitoAccess();
+      if (!allowed) {
+        throw new Error(`步骤 ${visibleStep}：插件尚未允许在无痕模式下运行，请先在 Chrome 扩展详情页开启“允许在无痕模式下运行”。`);
+      }
+    }
+
     async function getPlusCardKeySiteTab(visibleStep) {
       if (!chrome?.tabs?.query || !chrome?.tabs?.update) {
         throw new Error(`步骤 ${visibleStep}：当前运行环境不支持访问 Plus 卡密取码站标签页。`);
       }
+      await ensurePlusCardKeyIncognitoAccess(visibleStep);
       const tabs = await chrome.tabs.query({ url: PLUS_CARD_KEY_SITE_TAB_URL_PATTERN });
-      const tab = tabs.find((candidate) => Number.isInteger(candidate?.id)) || null;
+      const tab = tabs.find((candidate) => Number.isInteger(candidate?.id) && candidate.incognito) || null;
       if (!tab?.id) {
-        throw new Error(`步骤 ${visibleStep}：未找到 Plus 卡密取码站标签页，请先在侧边栏完成当前卡密换邮箱后再启动流程。`);
+        throw new Error(`步骤 ${visibleStep}：未找到无痕 Plus 卡密取码站标签页，请先在侧边栏完成当前卡密换邮箱后再启动流程。`);
+      }
+      if (Number.isInteger(tab.windowId) && tab.windowId > 0 && chrome?.windows?.update) {
+        await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
       }
       await chrome.tabs.update(tab.id, { active: true });
       return tab;
