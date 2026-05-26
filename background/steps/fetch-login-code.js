@@ -299,7 +299,8 @@
     }
 
     function getAuthLoginStepForVisibleStep(visibleStep) {
-      return visibleStep >= 11 ? 10 : 7;
+      const normalizedStep = Math.floor(Number(visibleStep) || 0);
+      return normalizedStep > 1 ? (normalizedStep - 1) : 1;
     }
 
     async function getStep8ReadyTimeoutMs(actionLabel, expectedOauthUrl = '', visibleStep = 8) {

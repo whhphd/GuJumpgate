@@ -94,6 +94,6 @@ test('manual hosted checkout code fetch ignores PayPal confirmation text with ex
     () => executor.fetchHostedCheckoutVerificationCodeManually({
       verificationUrl: 'http://example.test/api/get_sms?key=test',
     }),
-    /暂未返回有效验证码/
+    /(?:暂未返回有效验证码|非验证码内容)/
   );
 });

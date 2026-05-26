@@ -45,7 +45,14 @@
     }
 
     function getAuthLoginStepForVisibleStep(visibleStep) {
-      return visibleStep >= 12 ? 10 : 7;
+      const normalizedStep = Math.floor(Number(visibleStep) || 0);
+      if (normalizedStep >= 13) {
+        return 10;
+      }
+      if (normalizedStep >= 11) {
+        return 6;
+      }
+      return 7;
     }
 
     function addStepLog(step, message, level = 'info') {

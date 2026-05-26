@@ -10,6 +10,7 @@ const PAYPAL_HOSTED_STAGE_GUEST_CHECKOUT = 'guest_checkout';
 const PAYPAL_HOSTED_STAGE_VERIFICATION = 'verification';
 const PAYPAL_HOSTED_STAGE_REVIEW = 'review_consent';
 const PAYPAL_HOSTED_STAGE_APPROVAL = 'approval';
+const PAYPAL_HOSTED_STAGE_BLOCKED = 'blocked';
 const PAYPAL_HOSTED_STAGE_GENERIC_ERROR = 'generic_error';
 const PAYPAL_HOSTED_STAGE_UNKNOWN = 'unknown';
 const PAYPAL_HOSTED_HERMES_AUTORUN_SENTINEL = '__MULTIPAGE_PAYPAL_HOSTED_HERMES_AUTORUN__';
@@ -306,6 +307,47 @@ function isPayPalHostedGenericErrorPage() {
     );
 }
 
+function getPayPalHostedGuestCardErrorMessage() {
+  const bodyText = normalizeText(document.body?.innerText || '');
+  const match = bodyText.match(
+    /We\s+weren[’']?t\s+able\s+to\s+add\s+this\s+card\.?\s*Check\s+all\s+the\s+details\s+are\s+correct\s+and\s+try\s+again\s+or\s+try\s+a\s+different\s+card\.?|无法添加此卡|无法新增此卡|请检查所有详细信息是否正确.*(?:其他|不同).*卡/i
+  );
+  return match ? match[0] : '';
+}
+
+function hasPayPalHostedGuestCardError() {
+  return Boolean(getPayPalHostedGuestCardErrorMessage());
+}
+
+function getPayPalHostedGuestPhoneErrorMessage() {
+  const bodyText = normalizeText(document.body?.innerText || '');
+  const match = bodyText.match(
+    /We[’']?re\s+unable\s+to\s+complete\s+your\s+request\.?\s*Try\s+a\s+different\s+phone\s+number\.?|Try\s+a\s+different\s+phone\s+number\.?|请尝试其他手机号|请更换手机号/i
+  );
+  return match ? match[0] : '';
+}
+
+function hasPayPalHostedGuestPhoneError() {
+  return Boolean(getPayPalHostedGuestPhoneErrorMessage());
+}
+
+function getPayPalHostedBlockedMessage() {
+  const bodyText = normalizeText(document.body?.innerText || '');
+  const match = bodyText.match(
+    /You\s+have\s+been\s+blocked\.?|We\s+couldn[’']?t\s+load\s+the\s+security\s+challenge\.?/i
+  );
+  return match ? match[0] : '';
+}
+
+function isPayPalHostedBlockedPage() {
+  const bodyText = normalizeText(document.body?.innerText || '');
+  return Boolean(getPayPalHostedBlockedMessage())
+    || (
+      /you\s+have\s+been\s+blocked/i.test(bodyText)
+      && /security\s+challenge/i.test(bodyText)
+    );
+}
+
 function isPayPalHostedReviewPage() {
   return /\/webapps\/hermes/i.test(getPayPalHostedPathname());
 }
@@ -359,6 +401,9 @@ function detectPayPalHostedCheckoutStage() {
   }
   if (hasHostedVerificationInputs()) {
     return PAYPAL_HOSTED_STAGE_VERIFICATION;
+  }
+  if (isPayPalHostedBlockedPage()) {
+    return PAYPAL_HOSTED_STAGE_BLOCKED;
   }
   if (isPayPalHostedGenericErrorPage()) {
     return PAYPAL_HOSTED_STAGE_GENERIC_ERROR;
@@ -744,6 +789,12 @@ async function fillHostedGuestCheckout(payload = {}) {
   if (!rootScope[PAYPAL_HOSTED_GUEST_SUBMIT_SENTINEL]) {
     rootScope[PAYPAL_HOSTED_GUEST_SUBMIT_SENTINEL] = true;
     setTimeout(() => {
+      try {
+        throwIfStopped();
+      } catch (error) {
+        rootScope[PAYPAL_HOSTED_GUEST_SUBMIT_SENTINEL] = false;
+        return;
+      }
       clickHostedGenericSubmitButton(0).catch((error) => {
         log(`PayPal hosted checkout guest submit 失败：${error?.message || error}`, 'warn');
       }).finally(() => {
@@ -803,10 +854,17 @@ async function clickHostedReviewConsent() {
 }
 
 async function runHostedCheckoutStep(payload = {}) {
+  const stage = detectPayPalHostedCheckoutStage();
+  if (payload.resendVerificationCode && stage !== PAYPAL_HOSTED_STAGE_VERIFICATION) {
+    return {
+      stage,
+      submitted: false,
+      resendSkipped: true,
+    };
+  }
   if (isPayPalHostedReviewPage()) {
     return clickHostedReviewConsent();
   }
-  const stage = detectPayPalHostedCheckoutStage();
   if (stage === PAYPAL_HOSTED_STAGE_VERIFICATION) {
     if (payload.resendVerificationCode) {
       return clickHostedVerificationResend();
@@ -1081,8 +1139,14 @@ function inspectPayPalState() {
     hostedAccountCreateEmail: hostedStage === PAYPAL_HOSTED_STAGE_ACCOUNT_CREATE_EMAIL,
     hostedAccountCreateEmailContinueReady: Boolean(findHostedAccountCreateEmailContinueButton()),
     hasHostedGuestCheckout: hostedStage === PAYPAL_HOSTED_STAGE_GUEST_CHECKOUT,
+    hostedBlocked: hostedStage === PAYPAL_HOSTED_STAGE_BLOCKED,
+    hostedBlockedMessage: getPayPalHostedBlockedMessage(),
     hostedGenericError: hostedStage === PAYPAL_HOSTED_STAGE_GENERIC_ERROR,
     hostedGenericErrorMessage: getPayPalHostedGenericErrorMessage(),
+    hostedGuestCardError: hasPayPalHostedGuestCardError(),
+    hostedGuestCardErrorMessage: getPayPalHostedGuestCardErrorMessage(),
+    hostedGuestPhoneError: hasPayPalHostedGuestPhoneError(),
+    hostedGuestPhoneErrorMessage: getPayPalHostedGuestPhoneErrorMessage(),
     verificationInputsVisible: hasHostedVerificationInputs(),
     hostedVerificationInvalidCode: hasHostedInvalidVerificationCodeError(),
     hostedVerificationErrorText: getHostedVerificationErrorText(),

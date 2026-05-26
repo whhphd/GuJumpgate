@@ -6,6 +6,11 @@
   const PROVIDER_FIVE_SIM = '5sim';
   const PROVIDER_NEXSMS = 'nexsms';
   const PROVIDER_OOEAO = 'ooeao';
+  const PROVIDER_SMSBOWER = 'smsbower';
+  const PROVIDER_SMS_VERIFICATION_NUMBER = 'sms-verification-number';
+  const PROVIDER_GRIZZLYSMS = 'grizzlysms';
+  const PROVIDER_SMSPOOL = 'smspool';
+  const PROVIDER_CHATGPT_API = 'chatgpt-api';
   const DEFAULT_PROVIDER = PROVIDER_HERO_SMS;
   // 主-备 fallback 池只列入有自动下单/取消能力的 provider；ooeao 是预付号码池，
   // 用户选中后只用它本身，不参与自动 fallback。
@@ -13,6 +18,11 @@
     PROVIDER_HERO_SMS,
     PROVIDER_FIVE_SIM,
     PROVIDER_NEXSMS,
+    PROVIDER_SMSBOWER,
+    PROVIDER_SMS_VERIFICATION_NUMBER,
+    PROVIDER_GRIZZLYSMS,
+    PROVIDER_SMSPOOL,
+    PROVIDER_CHATGPT_API,
   ]);
   const PROVIDER_DEFINITIONS = Object.freeze({
     [PROVIDER_HERO_SMS]: Object.freeze({
@@ -34,6 +44,31 @@
       id: PROVIDER_OOEAO,
       label: 'ooeao',
       moduleKey: 'PhoneSmsOoeaoProvider',
+    }),
+    [PROVIDER_SMSBOWER]: Object.freeze({
+      id: PROVIDER_SMSBOWER,
+      label: 'SMSBower',
+      moduleKey: 'PhoneSmsBowerProvider',
+    }),
+    [PROVIDER_SMS_VERIFICATION_NUMBER]: Object.freeze({
+      id: PROVIDER_SMS_VERIFICATION_NUMBER,
+      label: 'SMS Verification Number',
+      moduleKey: 'PhoneSmsVerificationNumberProvider',
+    }),
+    [PROVIDER_GRIZZLYSMS]: Object.freeze({
+      id: PROVIDER_GRIZZLYSMS,
+      label: 'GrizzlySMS',
+      moduleKey: 'PhoneSmsGrizzlySmsProvider',
+    }),
+    [PROVIDER_SMSPOOL]: Object.freeze({
+      id: PROVIDER_SMSPOOL,
+      label: 'SMSPool',
+      moduleKey: 'PhoneSmsPoolProvider',
+    }),
+    [PROVIDER_CHATGPT_API]: Object.freeze({
+      id: PROVIDER_CHATGPT_API,
+      label: 'ChatGPT API 接码',
+      moduleKey: 'PhoneSmsChatGptApiProvider',
     }),
   });
 
@@ -134,6 +169,11 @@
     PROVIDER_FIVE_SIM,
     PROVIDER_NEXSMS,
     PROVIDER_OOEAO,
+    PROVIDER_SMSBOWER,
+    PROVIDER_SMS_VERIFICATION_NUMBER,
+    PROVIDER_GRIZZLYSMS,
+    PROVIDER_SMSPOOL,
+    PROVIDER_CHATGPT_API,
     DEFAULT_PROVIDER,
     DEFAULT_PROVIDER_ORDER,
     PROVIDER_DEFINITIONS,

@@ -16,9 +16,19 @@ test('registry exposes ooeao provider id and label', () => {
 });
 
 test('ooeao stays out of the default fallback provider order', () => {
+  assert.equal(registry.DEFAULT_PROVIDER_ORDER.includes('ooeao'), false);
   assert.deepEqual(
     registry.DEFAULT_PROVIDER_ORDER.slice(),
-    ['hero-sms', '5sim', 'nexsms']
+    [
+      'hero-sms',
+      '5sim',
+      'nexsms',
+      'smsbower',
+      'sms-verification-number',
+      'grizzlysms',
+      'smspool',
+      'chatgpt-api',
+    ]
   );
 });
 

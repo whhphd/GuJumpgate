@@ -6,8 +6,8 @@
   const DEFAULT_BASE_URL = 'https://hero-sms.com/stubs/handler_api.php';
   const DEFAULT_SERVICE_CODE = 'dr';
   const DEFAULT_SERVICE_LABEL = 'OpenAI';
-  const DEFAULT_COUNTRY_ID = 52;
-  const DEFAULT_COUNTRY_LABEL = 'Thailand';
+  const DEFAULT_COUNTRY_ID = 33;
+  const DEFAULT_COUNTRY_LABEL = 'Colombia';
   const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
 
   function normalizeHeroSmsCountryId(value, fallback = DEFAULT_COUNTRY_ID) {

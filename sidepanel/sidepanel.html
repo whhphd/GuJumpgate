@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GuJumpgate  V0.1.4</title>
+  <title>GuJumpgate  V0.1.5</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -25,7 +25,7 @@
       <div class="header-version-block">
         <div class="header-version-main">
           <button id="extension-update-status" class="header-version-title header-version-link" type="button"
-          aria-label="打开 GitHub Releases 页面" title="打开 GitHub Releases 页面">GuJumpgate  V0.1.4</button>
+          aria-label="打开 GitHub Releases 页面" title="打开 GitHub Releases 页面">GuJumpgate  V0.1.5</button>
           <button id="btn-release-log" class="header-link-btn" type="button" hidden>更新日志</button>
         </div>
         <span id="extension-version-meta" class="header-version-meta" hidden></span>
@@ -130,6 +130,8 @@
         <div class="data-inline">
           <select id="select-account-access-strategy" class="data-select">
             <option value="oauth" selected>Oauth</option>
+            <option value="sms_oauth">先手机号注册 Oauth</option>
+            <option value="phone_bind_oauth">后手机号绑定 Oauth</option>
             <option value="session_json">SESSION JSON导入</option>
           </select>
           <span class="setting-caption" id="account-access-strategy-caption"></span>
@@ -367,14 +369,6 @@
           <span id="display-hosted-checkout-manual-code" class="data-value mono hosted-checkout-manual-fetch-code">未获取</span>
         </div>
       </div>
-      <div class="data-row" id="row-hosted-checkout-verification-popup-delay" style="display:none;">
-        <span class="data-label">弹窗延迟</span>
-        <div class="data-inline">
-          <input type="number" id="input-hosted-checkout-verification-popup-delay-seconds" class="data-input auto-delay-input"
-            value="20" min="0" max="60" step="1" title="检测到 PayPal hosted checkout 验证码弹窗后，等待多少秒再开始获取验证码" />
-          <span class="setting-caption">检测到验证码弹窗后，先等待多少秒再开始获取验证码；默认 20 秒</span>
-        </div>
-      </div>
       <div class="data-row" id="row-hosted-checkout-phone" style="display:none;">
         <span class="data-label">PayPal 电话(不带+1)</span>
         <input type="text" id="input-hosted-checkout-phone" class="data-input mono"
@@ -403,8 +397,17 @@
             </div>
             <textarea id="input-hosted-sms-pool-import" class="data-textarea mono" rows="4"
               placeholder="1234567890&#10;&#10;https://mail.test.com/api/text-relay/eca_tr_xxxxxxxxx"></textarea>
-            <div class="data-inline">
+            <div class="data-inline hosted-sms-pool-import-actions">
               <button id="btn-hosted-sms-pool-import" class="btn btn-primary btn-sm" type="button">导入号码</button>
+              <label class="hosted-checkout-setting-toggle hosted-sms-pool-auto-disable-toggle" title="开启后，PayPal 接码池号码连续接码失败会被自动禁用，后续选号自动跳过；默认关闭">
+                <span class="setting-caption">自动禁用</span>
+                <span class="toggle-switch">
+                  <input type="checkbox" id="input-hosted-checkout-sms-pool-auto-disable-enabled" />
+                  <span class="toggle-switch-track" aria-hidden="true">
+                    <span class="toggle-switch-thumb"></span>
+                  </span>
+                </span>
+              </label>
             </div>
             <div class="icloud-card">
               <div id="hosted-sms-pool-summary" class="icloud-summary">导入 PayPal 接码号码，每行一个号码和验证码接口。</div>
@@ -413,6 +416,8 @@
                   placeholder="搜索号码 / 接口" />
                 <select id="select-hosted-sms-pool-filter" class="data-select icloud-filter">
                   <option value="all">全部</option>
+                  <option value="enabled">启用中</option>
+                  <option value="disabled">已禁用</option>
                   <option value="current">当前</option>
                   <option value="unused">0 次</option>
                   <option value="used">已使用</option>
@@ -422,6 +427,45 @@
               <div id="hosted-sms-pool-list" class="luckmail-list"></div>
             </div>
           </div>
+        </div>
+      </div>
+      <div class="data-row" id="row-hosted-checkout-resend-settings" style="display:none;">
+        <span class="data-label">PayPal 接码</span>
+        <div class="data-inline data-value-actions hosted-checkout-resend-settings-inline">
+          <label class="hosted-checkout-setting-toggle" title="开启后检测到 PayPal 验证码弹窗 1 秒后先点击 Resend，再进入首次等码窗口">
+            <span class="setting-caption">首次直接重发</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="input-hosted-checkout-first-direct-resend-enabled" />
+              <span class="toggle-switch-track" aria-hidden="true">
+                <span class="toggle-switch-thumb"></span>
+              </span>
+            </span>
+          </label>
+          <label class="hosted-checkout-setting-field">
+            <span class="setting-caption">首次等码秒</span>
+            <input type="number" id="input-hosted-checkout-first-resend-wait-seconds" class="data-input auto-delay-input"
+              value="20" min="0" max="300" step="1" title="第一次检测到验证码弹窗后，最多等码多少秒；窗口内按轮询设置请求接口" />
+          </label>
+          <label class="hosted-checkout-setting-field">
+            <span class="setting-caption">后续等码秒</span>
+            <input type="number" id="input-hosted-checkout-subsequent-resend-wait-seconds" class="data-input auto-delay-input"
+              value="25" min="0" max="300" step="1" title="每次 Resend 后，最多等码多少秒；窗口内按轮询设置请求接口" />
+          </label>
+          <label class="hosted-checkout-setting-field">
+            <span class="setting-caption">轮询次数</span>
+            <input type="number" id="input-hosted-checkout-verification-poll-attempts" class="data-input auto-delay-input"
+              value="6" min="1" max="60" step="1" title="每个等码窗口内最多请求验证码接口几次" />
+          </label>
+          <label class="hosted-checkout-setting-field">
+            <span class="setting-caption">轮询间隔秒</span>
+            <input type="number" id="input-hosted-checkout-verification-poll-interval-seconds" class="data-input auto-delay-input"
+              value="5" min="1" max="60" step="1" title="每个等码窗口内两次请求验证码接口的间隔秒数" />
+          </label>
+          <label class="hosted-checkout-setting-field">
+            <span class="setting-caption">重发上限</span>
+            <input type="number" id="input-hosted-checkout-verification-resend-max-attempts" class="data-input auto-delay-input"
+              value="1" min="0" max="10" step="1" title="PayPal 验证码 Resend 最多点击几次" />
+          </label>
         </div>
       </div>
       <div class="data-row" id="row-gpc-helper-api" style="display:none;">
@@ -687,34 +731,6 @@
           <button id="btn-fetch-email" class="btn btn-outline btn-sm data-inline-btn" type="button">获取</button>
         </div>
       </div>
-      <div class="data-row module-divider-start" id="row-auto-delay-settings">
-        <span class="data-label">第六步</span>
-        <div class="data-inline setting-pair auto-delay-setting-pair">
-          <div class="setting-group setting-group-primary step6-cookie-cleanup-setting">
-            <span class="setting-caption setting-caption-left">清 Cookies</span>
-            <label class="toggle-switch" for="input-step6-cookie-cleanup-enabled">
-              <input type="checkbox" id="input-step6-cookie-cleanup-enabled" />
-              <span class="toggle-switch-track" aria-hidden="true">
-                <span class="toggle-switch-thumb"></span>
-              </span>
-            </label>
-          </div>
-          <div class="setting-group setting-group-secondary auto-run-delay-setting">
-            <span class="setting-caption">延迟</span>
-            <label class="toggle-switch" for="input-auto-delay-enabled">
-              <input type="checkbox" id="input-auto-delay-enabled" />
-              <span class="toggle-switch-track" aria-hidden="true">
-                <span class="toggle-switch-thumb"></span>
-              </span>
-            </label>
-            <div class="setting-controls">
-              <input type="number" id="input-auto-delay-minutes" class="data-input auto-delay-input" value="30" min="1"
-                max="1440" step="1" title="启动前倒计时分钟数" />
-              <span class="data-unit">分钟</span>
-            </div>
-          </div>
-        </div>
-      </div>
       <div class="data-row" id="row-operation-delay-settings">
         <span class="data-label">操作间延迟</span>
         <div class="data-inline setting-pair operation-delay-setting-pair">
@@ -732,7 +748,7 @@
       </div>
       <div class="data-row">
         <span class="data-label">自动重试</span>
-        <div class="data-inline setting-pair">
+        <div class="data-inline setting-pair auto-run-retry-setting-pair">
           <div class="setting-group setting-group-primary">
             <label class="toggle-switch" for="input-auto-skip-failures">
               <input type="checkbox" id="input-auto-skip-failures" />
@@ -798,6 +814,10 @@
       <div class="data-row module-divider-start" id="row-oauth-display">
         <span class="data-label">OAuth</span>
         <span id="display-oauth-url" class="data-value mono truncate">等待中...</span>
+      </div>
+      <div class="data-row">
+        <span class="data-label">登录验证码</span>
+        <span id="display-oauth-login-code" class="data-value mono">未获取</span>
       </div>
       <div class="data-row">
         <span class="data-label">回调</span>
@@ -1505,6 +1525,11 @@
                 <option value="5sim">5sim</option>
                 <option value="nexsms">NexSMS</option>
                 <option value="ooeao">ooeao</option>
+                <option value="smsbower">SMSBower</option>
+                <option value="sms-verification-number">SMS Verification Number</option>
+                <option value="grizzlysms">GrizzlySMS</option>
+                <option value="smspool">SMSPool</option>
+                <option value="chatgpt-api">ChatGPT API 接码</option>
               </select>
             </div>
             <div class="data-row" id="row-ooeao-pool" style="display:none;">
@@ -1524,15 +1549,20 @@
             <div class="data-row" id="row-phone-sms-provider-order" style="display:none;">
               <span class="data-label">服务商顺序</span>
               <div class="data-inline hero-sms-country-stack">
-                <select id="select-phone-sms-provider-order" class="data-input mono" multiple size="3" style="display:none;">
+                <select id="select-phone-sms-provider-order" class="data-input mono" multiple size="4" style="display:none;">
                   <option value="hero-sms" selected>HeroSMS</option>
                   <option value="5sim" selected>5sim</option>
                   <option value="nexsms" selected>NexSMS</option>
+                  <option value="smsbower" selected>SMSBower</option>
+                  <option value="sms-verification-number" selected>SMS Verification Number</option>
+                  <option value="grizzlysms" selected>GrizzlySMS</option>
+                  <option value="smspool" selected>SMSPool</option>
+                  <option value="chatgpt-api" selected>ChatGPT API 接码</option>
                 </select>
                 <div class="hero-sms-country-mainline">
                   <div id="phone-sms-provider-order-menu-shell" class="hero-sms-country-menu">
                     <button id="btn-phone-sms-provider-order-menu" class="btn btn-outline btn-sm hero-sms-country-menu-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
-                      HeroSMS / 5sim / NexSMS (3/3)
+                      HeroSMS / 5sim / NexSMS / SMSBower / SMS Verification Number / GrizzlySMS / SMSPool / ChatGPT API 接码 (8/8)
                     </button>
                     <div id="phone-sms-provider-order-menu" class="hero-sms-country-menu-dropdown" role="listbox" aria-multiselectable="true" hidden></div>
                   </div>
@@ -1549,18 +1579,18 @@
             </div>
             <div class="data-row" id="row-hero-sms-platform" style="display:none;">
               <span class="data-label">接码平台</span>
-              <span id="display-hero-sms-platform" class="data-value mono">HeroSMS / OpenAI / Thailand</span>
+              <span id="display-hero-sms-platform" class="data-value mono">HeroSMS / OpenAI / Colombia</span>
             </div>
             <div class="data-row" id="row-hero-sms-country" style="display:none;">
               <span class="data-label">国家优先级</span>
               <div class="data-inline hero-sms-country-stack">
                 <select id="select-hero-sms-country" class="data-input mono" multiple size="6" style="display:none;">
-                  <option value="52" selected>Thailand</option>
+                  <option value="33" selected>Colombia</option>
                 </select>
                 <div class="hero-sms-country-mainline">
                   <div id="hero-sms-country-menu-shell" class="hero-sms-country-menu">
                     <button id="btn-hero-sms-country-menu" class="btn btn-outline btn-sm hero-sms-country-menu-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
-                      Thailand (1/3)
+                      Colombia (1/3)
                     </button>
                     <div id="hero-sms-country-menu" class="hero-sms-country-menu-dropdown" role="listbox" aria-multiselectable="true" hidden></div>
                   </div>
@@ -1726,7 +1756,7 @@
                 <div id="row-phone-verification-resend-count" class="hero-sms-settings-cell" style="display:none;">
                   <span class="hero-sms-settings-caption">验证码重发</span>
                   <div class="setting-controls">
-                    <input type="number" id="input-verification-resend-count" class="data-input auto-delay-input" value="4"
+                    <input type="number" id="input-verification-resend-count" class="data-input auto-delay-input" value="0"
                       min="0" max="20" step="1" title="自动点击重新发送验证码的次数" />
                     <span class="data-unit">次</span>
                   </div>
@@ -1741,7 +1771,7 @@
                 <div id="row-phone-code-wait-seconds" class="hero-sms-settings-cell" style="display:none;">
                   <span class="hero-sms-settings-caption">验证码限时</span>
                   <div class="setting-controls">
-                    <input type="number" id="input-phone-code-wait-seconds" class="data-input auto-delay-input" value="60" min="15" max="300" step="1" title="每轮等待验证码的秒数" />
+                    <input type="number" id="input-phone-code-wait-seconds" class="data-input auto-delay-input" value="120" min="15" max="300" step="1" title="每轮等待验证码的秒数" />
                     <span class="data-unit">秒</span>
                   </div>
                 </div>
@@ -1786,6 +1816,61 @@
                         <span class="toggle-switch-thumb"></span>
                       </span>
                     </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="data-row data-check-row" id="row-chatgpt-api-sms-pool" style="display:none;">
+              <span class="data-label">ChatGPT API 接码池</span>
+              <div class="hotmail-import-box hosted-sms-pool-box">
+                <textarea id="input-chatgpt-api-sms-pool" class="data-textarea mono" hidden
+                  placeholder="628123456789&#10;&#10;https://example.com/api/get-sms?id=xxxx"></textarea>
+                <div class="section-mini-header">
+                  <div class="section-mini-copy">
+                    <span class="section-label">ChatGPT API 接码池</span>
+                    <span class="data-value">号码和验证码接口按行绑定</span>
+                  </div>
+                  <div class="section-mini-actions">
+                    <button id="btn-toggle-chatgpt-api-sms-pool" class="btn btn-ghost btn-xs" type="button"
+                      aria-expanded="false">展开</button>
+                  </div>
+                </div>
+                <div id="chatgpt-api-sms-pool-shell" class="hosted-sms-pool-shell is-collapsed" hidden>
+                  <div class="section-mini-actions hosted-sms-pool-toolbar">
+                    <button id="btn-chatgpt-api-sms-pool-refresh" class="btn btn-ghost btn-xs" type="button">刷新</button>
+                    <button id="btn-chatgpt-api-sms-pool-clear-used" class="btn btn-ghost btn-xs" type="button">清空次数</button>
+                    <button id="btn-chatgpt-api-sms-pool-delete-all" class="btn btn-ghost btn-xs" type="button">全部删除</button>
+                  </div>
+                  <textarea id="input-chatgpt-api-sms-pool-import" class="data-textarea mono" rows="4"
+                    placeholder="628123456789&#10;&#10;https://example.com/api/get-sms?id=xxxx"></textarea>
+                  <div class="data-inline hosted-sms-pool-import-actions">
+                    <button id="btn-chatgpt-api-sms-pool-import" class="btn btn-primary btn-sm" type="button">导入号码</button>
+                    <label class="hosted-checkout-setting-toggle hosted-sms-pool-auto-disable-toggle" title="开启后，ChatGPT API 接码池号码连续取码失败会被自动禁用，后续选号自动跳过；默认关闭">
+                      <span class="setting-caption">自动禁用</span>
+                      <span class="toggle-switch">
+                        <input type="checkbox" id="input-chatgpt-api-sms-pool-auto-disable-enabled" />
+                        <span class="toggle-switch-track" aria-hidden="true">
+                          <span class="toggle-switch-thumb"></span>
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                  <div class="icloud-card">
+                    <div id="chatgpt-api-sms-pool-summary" class="icloud-summary">导入 ChatGPT API 接码号码，每行一个号码和验证码接口。</div>
+                    <div class="icloud-toolbar">
+                      <input id="input-chatgpt-api-sms-pool-search" class="data-input icloud-search" type="text"
+                        placeholder="搜索号码 / 接口" />
+                      <select id="select-chatgpt-api-sms-pool-filter" class="data-select icloud-filter">
+                        <option value="all">全部</option>
+                        <option value="enabled">启用中</option>
+                        <option value="disabled">已禁用</option>
+                        <option value="current">当前</option>
+                        <option value="unused">0 次</option>
+                        <option value="used">已使用</option>
+                        <option value="error">异常</option>
+                      </select>
+                    </div>
+                    <div id="chatgpt-api-sms-pool-list" class="luckmail-list"></div>
                   </div>
                 </div>
               </div>
@@ -1983,6 +2068,10 @@
   <script src="../phone-sms/providers/hero-sms.js"></script>
   <script src="../phone-sms/providers/five-sim.js"></script>
   <script src="../phone-sms/providers/ooeao.js"></script>
+  <script src="../phone-sms/providers/smsbower.js"></script>
+  <script src="../phone-sms/providers/sms-verification-number.js"></script>
+  <script src="../phone-sms/providers/grizzlysms.js"></script>
+  <script src="../phone-sms/providers/chatgpt-api.js"></script>
   <script src="../phone-sms/providers/registry.js"></script>
   <script src="../icloud-utils.js"></script>
   <script src="../mail-provider-utils.js"></script>
