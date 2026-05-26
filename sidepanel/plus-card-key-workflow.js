@@ -499,6 +499,7 @@
       target: { tabId: tab.id },
       func: cardSiteInjectedRunner,
       args: [functionName, args],
+      world: 'MAIN',
     });
     if (result?.error) throw new Error(result.error);
     return result || {};
@@ -520,6 +521,7 @@
           target: { tabId: tab.id },
           func: cardSiteInjectedRunner,
           args: [functionName, args],
+          world: 'MAIN',
         });
         if (result?.error) throw new Error(result.error);
         return result || {};
@@ -999,13 +1001,6 @@
       return getClickableElements().find((element) => pattern.test(getText(element))) || null;
     }
 
-    function findCardKeyInput() {
-      const textareas = [...document.querySelectorAll('textarea')].filter(isVisible);
-      if (textareas[0]) return textareas[0];
-      const inputs = [...document.querySelectorAll('input:not([type="hidden"]):not([type="button"]):not([type="submit"])')].filter(isVisible);
-      return inputs.find((input) => /卡密|密钥|秘钥|key/i.test(input.placeholder || input.name || input.id || '')) || inputs[0] || null;
-    }
-
     function getFieldLabel(element) {
       const parts = [
         element?.placeholder,
@@ -1016,6 +1011,16 @@
       const label = element?.labels?.[0]?.innerText || element?.closest?.('label')?.innerText || '';
       if (label) parts.push(label);
       return normalize(parts.filter(Boolean).join(' '));
+    }
+
+    function findCardKeyInput() {
+      const fields = [...document.querySelectorAll('input:not([type="hidden"]):not([type="button"]):not([type="submit"]), textarea')]
+        .filter(isVisible);
+      const labeledCardKeyField = fields.find((field) => /卡密|密钥|秘钥|key/i.test(getFieldLabel(field)));
+      if (labeledCardKeyField) return labeledCardKeyField;
+      return fields.find((field) => !/兑换码列表|批量|邮箱|email|mail|secret|秘钥|密钥/i.test(getFieldLabel(field)))
+        || fields[0]
+        || null;
     }
 
     function getVisibleTextFields() {

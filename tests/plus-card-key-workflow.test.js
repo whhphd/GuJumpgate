@@ -251,6 +251,135 @@ test('plus card exchange retries clicks when card site reports failed fetch', as
   }
 });
 
+test('plus card exchange retries when card site says card key is still empty', async () => {
+  const originalDocument = globalThis.document;
+  const originalGetComputedStyle = globalThis.getComputedStyle;
+  const originalInputElement = globalThis.HTMLInputElement;
+  const originalTextareaElement = globalThis.HTMLTextAreaElement;
+  const originalEvent = globalThis.Event;
+
+  let clickCount = 0;
+  let bodyText = '';
+  const cardField = createFieldStub({ label: '卡密换邮箱秘钥', value: '' });
+  const emailField = createFieldStub({ label: '邮箱', value: '' });
+  const secretField = createFieldStub({ label: '邮箱秘钥', value: '' });
+  const exchangeButton = {
+    innerText: '换出邮箱秘钥',
+    getBoundingClientRect() {
+      return { width: 100, height: 24 };
+    },
+    click() {
+      clickCount += 1;
+      assert.equal(cardField.value, '84KN-MH75-SBDL');
+      if (clickCount === 1) {
+        bodyText = '请输入卡密';
+        return;
+      }
+      bodyText = '换出成功';
+      emailField.value = 'pukka.15montane+ake@icloud.com';
+      secretField.value = '22DECC1918DE3087';
+    },
+  };
+
+  try {
+    globalThis.HTMLInputElement = function HTMLInputElement() {};
+    globalThis.HTMLTextAreaElement = function HTMLTextAreaElement() {};
+    globalThis.Event = function Event(type) {
+      this.type = type;
+    };
+    globalThis.getComputedStyle = () => ({ visibility: 'visible', display: 'block' });
+    globalThis.document = {
+      body: {
+        get innerText() {
+          return bodyText;
+        },
+      },
+      querySelectorAll(selector) {
+        if (/^button/.test(selector)) return [exchangeButton];
+        return [cardField, emailField, secretField];
+      },
+    };
+
+    const result = await globalThis.PlusCardKeyWorkflow._test.cardSiteInjectedRunner('exchange', [
+      '84KN-MH75-SBDL',
+      { maxAttempts: 2, settleMs: 1, clickTimeoutMs: 5, retryDelayMs: 1, pollMs: 1 },
+    ]);
+    assert.equal(clickCount, 2);
+    assert.deepEqual(result, {
+      email: 'pukka.15montane+ake@icloud.com',
+      mailSecret: '22DECC1918DE3087',
+    });
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.getComputedStyle = originalGetComputedStyle;
+    globalThis.HTMLInputElement = originalInputElement;
+    globalThis.HTMLTextAreaElement = originalTextareaElement;
+    globalThis.Event = originalEvent;
+  }
+});
+
+test('plus card exchange fills the labeled card field instead of a visible batch textarea', async () => {
+  const originalDocument = globalThis.document;
+  const originalGetComputedStyle = globalThis.getComputedStyle;
+  const originalInputElement = globalThis.HTMLInputElement;
+  const originalTextareaElement = globalThis.HTMLTextAreaElement;
+  const originalEvent = globalThis.Event;
+
+  let clickCount = 0;
+  const batchTextarea = createFieldStub({ label: '兑换码列表', value: '' });
+  const cardField = createFieldStub({ label: '卡密换邮箱秘钥', value: '' });
+  const emailField = createFieldStub({ label: '邮箱', value: '' });
+  const secretField = createFieldStub({ label: '邮箱秘钥', value: '' });
+  const exchangeButton = {
+    innerText: '换出邮箱秘钥',
+    getBoundingClientRect() {
+      return { width: 100, height: 24 };
+    },
+    click() {
+      clickCount += 1;
+      assert.equal(batchTextarea.value, '');
+      assert.equal(cardField.value, '84KN-MH75-SBDL');
+      emailField.value = 'pukka.15montane+ake@icloud.com';
+      secretField.value = '22DECC1918DE3087';
+    },
+  };
+
+  try {
+    globalThis.HTMLInputElement = function HTMLInputElement() {};
+    globalThis.HTMLTextAreaElement = function HTMLTextAreaElement() {};
+    globalThis.Event = function Event(type) {
+      this.type = type;
+    };
+    globalThis.getComputedStyle = () => ({ visibility: 'visible', display: 'block' });
+    globalThis.document = {
+      body: {
+        innerText: '邮箱取码 登录网页',
+      },
+      querySelectorAll(selector) {
+        if (/^button/.test(selector)) return [exchangeButton];
+        if (selector === 'textarea') return [batchTextarea, cardField];
+        return [batchTextarea, cardField, emailField, secretField];
+      },
+    };
+
+    const result = await globalThis.PlusCardKeyWorkflow._test.cardSiteInjectedRunner('exchange', [
+      '84KN-MH75-SBDL',
+      { maxAttempts: 1, settleMs: 1, clickTimeoutMs: 5, retryDelayMs: 1, pollMs: 1 },
+    ]);
+    assert.equal(clickCount, 1);
+    assert.deepEqual(result, {
+      email: 'pukka.15montane+ake@icloud.com',
+      mailSecret: '22DECC1918DE3087',
+    });
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.getComputedStyle = originalGetComputedStyle;
+    globalThis.HTMLInputElement = originalInputElement;
+    globalThis.HTMLTextAreaElement = originalTextareaElement;
+    globalThis.Event = originalEvent;
+  }
+});
+
 test('plus card context restore submits existing card before OAuth retry', async () => {
   const originalDocument = globalThis.document;
   const originalGetComputedStyle = globalThis.getComputedStyle;
