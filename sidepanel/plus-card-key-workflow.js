@@ -1158,8 +1158,9 @@
     function extractCode() {
       const text = normalize(document.body.innerText).replace(/\s+/g, ' ');
       const keywordMatch = text.match(CODE_PATTERN);
-      if (keywordMatch?.[1]) return keywordMatch[1].replace(/\D+/g, '');
-      const looseMatch = text.match(/\b(\d{4,8})\b/);
+      const keywordCode = keywordMatch?.[1]?.replace(/\D+/g, '') || '';
+      if (keywordCode.length === 6) return keywordCode;
+      const looseMatch = text.match(/(?:^|\D)(\d{6})(?!\d)/);
       return looseMatch?.[1] || '';
     }
 
