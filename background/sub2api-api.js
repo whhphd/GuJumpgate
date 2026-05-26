@@ -62,6 +62,11 @@
       return message || `SUB2API 请求失败（HTTP ${responseStatus}）：${path}`;
     }
 
+    function wrapSub2ApiFetchFailure(path = '', error = null) {
+      const originalMessage = normalizeString(error?.message || error) || 'Failed to fetch';
+      return new Error(`SUB2API 请求失败：${path}。请检查 SUB2API 地址、网络、代理或服务状态。原始错误：${originalMessage}`);
+    }
+
     async function requestJson(origin, path, options = {}) {
       const controller = new AbortController();
       const timeoutMs = Math.max(1000, Math.floor(Number(options.timeoutMs) || 30000));
@@ -103,6 +108,9 @@
       } catch (error) {
         if (error?.name === 'AbortError') {
           throw new Error(`SUB2API 请求超时：${path}`);
+        }
+        if (/failed\s+to\s+fetch|network\s*error|fetch\s+failed|load\s+failed/i.test(error?.message || String(error || ''))) {
+          throw wrapSub2ApiFetchFailure(path, error);
         }
         throw error;
       } finally {

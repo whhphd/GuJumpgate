@@ -14825,6 +14825,9 @@ async function getPostStep6AutoRestartDecision(step, error) {
   const currentNodeKey = resolveStepKey(normalizedStep, latestState);
   const confirmOauthStep = findStepIdByKeyForState('confirm-oauth', latestState);
   const boundEmailReloginStep = findStepIdByKeyForState('relogin-bound-email', latestState);
+  const isPlusCardKeyPlatformVerifyTransientFailure = Boolean(latestState?.plusCardKeyWorkflow)
+    && currentNodeKey === 'platform-verify'
+    && /SUB2API 请求(?:失败|超时)|Failed to fetch|failed to fetch|network\s*error|fetch\s+failed|load\s+failed|Receiving end does not exist/i.test(errorMessage);
   const isBoundEmailReloginTailStep = [
     'relogin-bound-email',
     'fetch-bound-email-login-code',
@@ -14846,6 +14849,17 @@ async function getPostStep6AutoRestartDecision(step, error) {
       blockedByAddPhone: false,
       forcedByPhoneVerificationTimeout: false,
       restartStep: authChainStartStep,
+      errorMessage,
+      authState: null,
+    };
+  }
+
+  if (isPlusCardKeyPlatformVerifyTransientFailure) {
+    return {
+      shouldRestart: false,
+      blockedByAddPhone: false,
+      forcedByPhoneVerificationTimeout: false,
+      restartStep: restartAnchorStep,
       errorMessage,
       authState: null,
     };

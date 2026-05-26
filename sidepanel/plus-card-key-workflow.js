@@ -829,7 +829,8 @@
 
     function findEmailField(cardKeyInput = null) {
       const fields = getVisibleTextFields().filter((field) => field !== cardKeyInput);
-      return fields.find((field) => /邮箱|email|mail/i.test(getFieldLabel(field)) && EMAIL_PATTERN.test(getFieldValue(field)))
+      const labeledEmailField = fields.find((field) => /邮箱|email|mail/i.test(getFieldLabel(field)));
+      return labeledEmailField
         || fields.find((field) => EMAIL_PATTERN.test(getFieldValue(field)))
         || null;
     }
@@ -856,8 +857,7 @@
       if (fieldEmail && fieldEmail !== previousEmail) {
         return fieldEmail;
       }
-      const textEmail = normalize(document.body.innerText).match(EMAIL_PATTERN)?.[0] || '';
-      return textEmail && textEmail !== previousEmail ? textEmail : '';
+      return '';
     }
 
     function extractMailSecret(email = '', cardKeyInput = null, previousSecret = '') {
@@ -894,23 +894,6 @@
       };
     }
 
-    function extractAnyEmail() {
-      const inputs = [...document.querySelectorAll('input, textarea')];
-      for (const input of inputs) {
-        const matched = getFieldValue(input).match(EMAIL_PATTERN);
-        if (matched?.[0]) return matched[0];
-      }
-      return normalize(document.body.innerText).match(EMAIL_PATTERN)?.[0] || '';
-    }
-
-    function extractAnyMailSecret(email = '') {
-      const values = [...document.querySelectorAll('input, textarea')]
-        .map(getFieldValue)
-        .filter(Boolean)
-        .filter((value) => value !== email && !EMAIL_PATTERN.test(value));
-      return values.find((value) => /^[A-Z0-9]{8,}$/i.test(value)) || '';
-    }
-
     function extractCode() {
       const text = normalize(document.body.innerText).replace(/\s+/g, ' ');
       const keywordMatch = text.match(CODE_PATTERN);
@@ -940,6 +923,7 @@
       const button = findClickableByText(/换出邮箱|换出.*秘钥|换出.*密钥|兑换|提取/i);
       if (!button) throw new Error('未找到“换出邮箱秘钥”按钮。');
       button.click();
+      await sleep(1200);
       const email = await waitFor(
         () => extractEmail(input, previousEmail),
         20000,
@@ -991,5 +975,8 @@
   root.PlusCardKeyWorkflow = {
     ...(root.PlusCardKeyWorkflow || {}),
     classifyFailure: classifyPlusCardKeyFailure,
+    _test: {
+      cardSiteInjectedRunner,
+    },
   };
 })(typeof window !== 'undefined' ? window : globalThis);
