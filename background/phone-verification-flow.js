@@ -7438,7 +7438,11 @@
           'warn'
         );
         if (shouldCancelActivation && activation) {
-          await cancelPhoneActivation(state, activation);
+          if (failureCode === 'phone_delivery_refused' || failureCode === 'phone_number_used') {
+            await banPhoneActivation(state, activation);
+          } else {
+            await cancelPhoneActivation(state, activation);
+          }
         }
         await clearCurrentActivation();
         activation = null;
