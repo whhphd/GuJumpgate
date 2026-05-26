@@ -4160,6 +4160,14 @@ async function setState(updates) {
         ),
       });
     }
+    if (Object.prototype.hasOwnProperty.call(sessionUpdates, 'chatGptApiSmsPoolUsage')) {
+      await chrome.storage.local.set({
+        chatGptApiSmsPoolUsage: normalizePersistentSettingValue(
+          'chatGptApiSmsPoolUsage',
+          sessionUpdates.chatGptApiSmsPoolUsage
+        ),
+      });
+    }
     if (Object.prototype.hasOwnProperty.call(sessionUpdates, 'ooeaoPool')) {
       await chrome.storage.local.set({
         ooeaoPool: normalizePersistentSettingValue('ooeaoPool', sessionUpdates.ooeaoPool),

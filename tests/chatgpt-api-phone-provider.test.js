@@ -85,6 +85,32 @@ test('ChatGPT API provider extracts Chinese OpenAI verification code response', 
   );
 });
 
+test('ChatGPT API provider skips disabled pool entries', async () => {
+  const disabledKey = '628111111111----https://example.test/api/sms/1';
+  const enabledKey = '628222222222----https://example.test/api/sms/2';
+  const initialState = createState({
+    chatGptApiSmsPoolUsage: {
+      [disabledKey]: {
+        useCount: 0,
+        usedAt: 0,
+        enabled: false,
+        disabledReason: '号码被目标站拒绝',
+      },
+      [enabledKey]: {
+        useCount: 5,
+        usedAt: 20,
+        enabled: true,
+      },
+    },
+  });
+  const { provider } = createProviderWithState(initialState);
+
+  const activation = await provider.requestActivation(initialState);
+
+  assert.equal(activation.activationId, enabledKey);
+  assert.equal(activation.phoneNumber, '628222222222');
+});
+
 test('ChatGPT API provider disables entry after repeated polling failures', async () => {
   const key = '628111111111----https://example.test/api/sms/1';
   const initialState = createState({

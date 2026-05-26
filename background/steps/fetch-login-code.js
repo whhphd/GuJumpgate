@@ -13,6 +13,11 @@
     const clickTimeoutMs = Math.max(1000, Math.floor(Number(options.clickTimeoutMs) || 6000));
     const retryDelayMs = Math.max(0, Math.floor(Number(options.retryDelayMs) || 1800));
     const pollMs = Math.max(1, Math.floor(Number(options.pollMs) || 300));
+    const rejectedCodes = new Set(
+      (Array.isArray(options.rejectedCodes) ? options.rejectedCodes : [])
+        .map((code) => normalize(code).replace(/\D+/g, ''))
+        .filter(Boolean)
+    );
 
     function isVisible(element) {
       if (!element) return false;
@@ -37,9 +42,10 @@
       const text = normalize([document.body?.innerText || '', ...formValues].join(' ')).replace(/\s+/g, ' ');
       const keywordMatch = text.match(CODE_PATTERN);
       const keywordCode = keywordMatch?.[1]?.replace(/\D+/g, '') || '';
-      if (keywordCode.length === 6) return keywordCode;
+      if (keywordCode.length === 6 && !rejectedCodes.has(keywordCode)) return keywordCode;
       const looseMatch = text.match(/(?:^|\D)(\d{6})(?!\d)/);
-      return looseMatch?.[1] || '';
+      const looseCode = looseMatch?.[1] || '';
+      return looseCode && !rejectedCodes.has(looseCode) ? looseCode : '';
     }
 
     function hasTransientFetchCodeError() {
@@ -250,12 +256,15 @@
       });
     }
 
-    async function fetchPlusCardKeyLoginCode(visibleStep) {
+    async function fetchPlusCardKeyLoginCode(visibleStep, options = {}) {
       if (!chrome?.scripting?.executeScript) {
         throw new Error(`步骤 ${visibleStep}：当前运行环境不支持在 Plus 卡密取码站执行取码脚本。`);
       }
       let lastError = null;
       let refreshAttempt = 0;
+      const rejectedCodes = Array.isArray(options.rejectedCodes)
+        ? options.rejectedCodes.map((code) => normalizePlusCardKeyVerificationCode(code)).filter(Boolean)
+        : [];
       while (true) {
         throwIfStopped();
         const tab = await getPlusCardKeySiteTab(visibleStep);
@@ -263,6 +272,7 @@
           const [{ result } = {}] = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: plusCardKeyFetchCodeInjectedRunner,
+            args: [{ rejectedCodes }],
           });
           if (result?.error) {
             throw new Error(result.error);
@@ -780,34 +790,50 @@
         }
 
         throwIfStopped();
-        const result = await fetchPlusCardKeyLoginCode(visibleStep);
-        const code = normalizePlusCardKeyVerificationCode(result?.code);
-        if (!code) {
-          throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站未识别到有效验证码。`);
+        const rejectedCodes = [];
+        const maxSubmitAttempts = 3;
+        for (let attempt = 1; attempt <= maxSubmitAttempts; attempt += 1) {
+          const result = await fetchPlusCardKeyLoginCode(visibleStep, { rejectedCodes });
+          const code = normalizePlusCardKeyVerificationCode(result?.code);
+          if (!code) {
+            throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站未识别到有效验证码。`);
+          }
+          await addLog(`步骤 ${visibleStep}：已从 Plus 卡密取码站获取登录验证码：${code}`);
+          throwIfStopped();
+          const submitResult = await submitVerificationCode(8, code, {
+            completionStep: visibleStep,
+            getRemainingTimeMs: getStep8RemainingTimeResolver(preparedState?.oauthUrl || '', visibleStep),
+          });
+          if (!submitResult?.invalidCode) {
+            await setState({
+              lastEmailTimestamp: Date.now(),
+              lastLoginCode: code,
+            });
+            if (typeof completeNodeFromBackground !== 'function') {
+              throw new Error(`步骤 ${visibleStep}：Plus 卡密验证码已提交，但节点完成模块尚未初始化。`);
+            }
+            await completeNodeFromBackground(preparedState?.nodeId || 'fetch-login-code', {
+              emailTimestamp: Date.now(),
+              code,
+              phoneVerificationRequired: Boolean(submitResult?.addPhonePage),
+              plusCardKeyWorkflow: true,
+            });
+            return { lastResendAt: latestResendAt };
+          }
+
+          rejectedCodes.push(code);
+          if (attempt >= maxSubmitAttempts) {
+            throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站验证码连续被页面拒绝 ${maxSubmitAttempts} 次：${submitResult.errorText || code}`);
+          }
+          await addLog(
+            `步骤 ${visibleStep}：Plus 卡密取码站验证码 ${code} 被页面拒绝：${submitResult.errorText || '代码不正确'}，正在回到卡密取码站重新获取新验证码（${attempt + 1}/${maxSubmitAttempts}）。`,
+            'warn'
+          );
+          if (typeof sleepWithStop === 'function') {
+            await sleepWithStop(1000);
+          }
         }
-        await addLog(`步骤 ${visibleStep}：已从 Plus 卡密取码站获取登录验证码：${code}`);
-        throwIfStopped();
-        const submitResult = await submitVerificationCode(8, code, {
-          completionStep: visibleStep,
-          getRemainingTimeMs: getStep8RemainingTimeResolver(preparedState?.oauthUrl || '', visibleStep),
-        });
-        if (submitResult?.invalidCode) {
-          throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站验证码被页面拒绝：${submitResult.errorText || code}`);
-        }
-        await setState({
-          lastEmailTimestamp: Date.now(),
-          lastLoginCode: code,
-        });
-        if (typeof completeNodeFromBackground !== 'function') {
-          throw new Error(`步骤 ${visibleStep}：Plus 卡密验证码已提交，但节点完成模块尚未初始化。`);
-        }
-        await completeNodeFromBackground(preparedState?.nodeId || 'fetch-login-code', {
-          emailTimestamp: Date.now(),
-          code,
-          phoneVerificationRequired: Boolean(submitResult?.addPhonePage),
-          plusCardKeyWorkflow: true,
-        });
-        return { lastResendAt: latestResendAt };
+        throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站验证码提交未成功。`);
       }
 
       const mail = getMailConfig(preparedState);
