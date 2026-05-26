@@ -474,6 +474,8 @@
       ? Infinity
       : Math.max(1, Math.floor(Number(options.maxPageAttempts) || 3));
     const requireRunning = Boolean(options.requireRunning);
+    const actionLabel = normalizeString(options.actionLabel)
+      || (functionName === 'fetchCode' ? '邮箱取码' : '换出邮箱');
     let lastError = null;
     for (let attempt = 1; attempt <= maxPageAttempts; attempt += 1) {
       if (requireRunning) throwIfAutoStopped();
@@ -488,7 +490,7 @@
         return result || {};
       } catch (error) {
         lastError = error;
-        if (!/failed to fetch|网络|请求失败|换出邮箱超时|未识别到邮箱|未识别到新的邮箱秘钥/i.test(error?.message || String(error))) {
+        if (!/failed to fetch|网络|请求失败|换出邮箱超时|未识别到邮箱|未识别到新的邮箱秘钥|邮箱取码超时|未识别到验证码|未返回有效验证码/i.test(error?.message || String(error))) {
           throw error;
         }
         if (attempt >= maxPageAttempts) break;
@@ -498,7 +500,7 @@
           : `第 ${attempt} 轮`;
         updateEntry(state.currentId, {
           status: 'running',
-          error: `卡密取码站换出失败，正在刷新页面后重试（${attemptText}）：${error?.message || error}`,
+          error: `卡密取码站${actionLabel}失败，正在刷新页面后重试（${attemptText}）：${error?.message || error}`,
         });
         await saveState();
         render();
@@ -508,7 +510,7 @@
         await delay(1500);
       }
     }
-    throw lastError || new Error('卡密取码站换出失败。');
+    throw lastError || new Error(`卡密取码站${actionLabel}失败。`);
   }
 
   async function exchangeCurrentEmail() {
@@ -820,7 +822,12 @@
     try {
       updateEntry(entry.id, { error: '' });
       render();
-      const result = await executeOnCardSite('fetchCode', []);
+      state.currentId = entry.id;
+      const result = await executeOnCardSiteWithPageRefresh('fetchCode', [], {
+        maxPageAttempts: 3,
+        requireRunning: false,
+        actionLabel: '邮箱取码',
+      });
       updateEntry(entry.id, {
         code: result.code || '',
         status: 'code_received',
@@ -998,7 +1005,7 @@
       return looseMatch?.[1] || '';
     }
 
-    function hasTransientExchangeError() {
+    function hasTransientCardSiteError() {
       const text = normalize(document.body.innerText || '').replace(/\s+/g, ' ');
       return /failed\s+to\s+fetch|network\s*error|请求失败|网络错误|加载失败|fetch\s+failed/i.test(text);
     }
@@ -1017,8 +1024,8 @@
         if (confirmedCardError) {
           throw new Error(confirmedCardError);
         }
-        if (options.abortOnTransientError && hasTransientExchangeError()) {
-          throw new Error('卡密取码站换出请求失败：Failed to fetch');
+        if (options.abortOnTransientError && hasTransientCardSiteError()) {
+          throw new Error(options.transientErrorMessage || '卡密取码站请求失败：Failed to fetch');
         }
         const value = check();
         if (value) return value;
@@ -1081,11 +1088,40 @@
     }
 
     async function fetchCode() {
+      const options = (args && typeof args[0] === 'object' && args[0]) || {};
+      const maxAttempts = Math.max(1, Math.floor(Number(options.maxAttempts) || 5));
+      const settleMs = Math.max(0, Math.floor(Number(options.settleMs) || 1200));
+      const clickTimeoutMs = Math.max(1000, Math.floor(Number(options.clickTimeoutMs) || 6000));
+      const retryDelayMs = Math.max(0, Math.floor(Number(options.retryDelayMs) || 1800));
+      const pollMs = Math.max(1, Math.floor(Number(options.pollMs) || 300));
       const button = findClickableByText(/邮箱取码|取码|获取验证码/i);
       if (!button) throw new Error('未找到“邮箱取码”按钮。');
-      button.click();
-      const code = await waitFor(extractCode, 60000, '邮箱取码超时，未识别到验证码。');
-      return { code };
+      let lastError = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        button.click();
+        await sleep(settleMs);
+        try {
+          const code = await waitFor(
+            extractCode,
+            clickTimeoutMs,
+            '邮箱取码超时，未识别到验证码。',
+            {
+              abortOnTransientError: true,
+              pollMs,
+              transientErrorMessage: '卡密取码站邮箱取码请求失败：Failed to fetch',
+            }
+          );
+          return { code };
+        } catch (error) {
+          lastError = error;
+          if (!/failed to fetch|请求失败|网络错误|邮箱取码超时|未识别到验证码/i.test(error?.message || String(error))) {
+            throw error;
+          }
+          if (attempt >= maxAttempts) break;
+          await sleep(retryDelayMs);
+        }
+      }
+      throw lastError || new Error('卡密取码站邮箱取码失败。');
     }
 
     return Promise.resolve()

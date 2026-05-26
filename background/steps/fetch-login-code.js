@@ -4,6 +4,86 @@
   const MAIL_2925_FILTER_LOOKBACK_MS = 10 * 60 * 1000;
   const PLUS_CARD_KEY_SITE_TAB_URL_PATTERN = '*://plus.keria.cc.cd/*';
 
+  function plusCardKeyFetchCodeInjectedRunner(options = {}) {
+    const CODE_PATTERN = /(?:验证码|verification\s*code|code)[\s:：是为-]*([0-9](?:[\s-]?[0-9]){3,7})/i;
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const normalize = (value = '') => String(value || '').trim();
+    const maxAttempts = Math.max(1, Math.floor(Number(options.maxAttempts) || 5));
+    const settleMs = Math.max(0, Math.floor(Number(options.settleMs) || 1200));
+    const clickTimeoutMs = Math.max(1000, Math.floor(Number(options.clickTimeoutMs) || 6000));
+    const retryDelayMs = Math.max(0, Math.floor(Number(options.retryDelayMs) || 1800));
+    const pollMs = Math.max(1, Math.floor(Number(options.pollMs) || 300));
+
+    function isVisible(element) {
+      if (!element) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    }
+
+    function getText(element) {
+      return normalize(element?.innerText || element?.textContent || element?.value || '');
+    }
+
+    function findClickableByText(pattern) {
+      const elements = [...document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], a')];
+      return elements.find((element) => isVisible(element) && pattern.test(getText(element))) || null;
+    }
+
+    function extractCode() {
+      const formValues = [...document.querySelectorAll('input, textarea')]
+        .map((input) => normalize(input.value))
+        .filter(Boolean);
+      const text = normalize([document.body?.innerText || '', ...formValues].join(' ')).replace(/\s+/g, ' ');
+      const keywordMatch = text.match(CODE_PATTERN);
+      if (keywordMatch?.[1]) return keywordMatch[1].replace(/\D+/g, '');
+      const looseMatch = text.match(/\b(\d{4,8})\b/);
+      return looseMatch?.[1] || '';
+    }
+
+    function hasTransientFetchCodeError() {
+      const text = normalize(document.body?.innerText || '').replace(/\s+/g, ' ');
+      return /failed\s+to\s+fetch|network\s*error|请求失败|网络错误|加载失败|fetch\s+failed/i.test(text);
+    }
+
+    async function waitFor(check, timeoutMs, errorMessage) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (hasTransientFetchCodeError()) {
+          throw new Error('Plus 卡密取码站邮箱取码请求失败：Failed to fetch');
+        }
+        const value = check();
+        if (value) return value;
+        await sleep(pollMs);
+      }
+      throw new Error(errorMessage);
+    }
+
+    return Promise.resolve()
+      .then(async () => {
+        const button = findClickableByText(/邮箱取码|取码|获取验证码/i);
+        if (!button) throw new Error('Plus 卡密取码站未找到“邮箱取码”按钮。');
+        let lastError = null;
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          button.click();
+          await sleep(settleMs);
+          try {
+            const code = await waitFor(extractCode, clickTimeoutMs, 'Plus 卡密取码站邮箱取码超时，未识别到验证码。');
+            return { code };
+          } catch (error) {
+            lastError = error;
+            if (!/failed to fetch|请求失败|网络错误|邮箱取码超时|未识别到验证码/i.test(error?.message || String(error))) {
+              throw error;
+            }
+            if (attempt >= maxAttempts) break;
+            await sleep(retryDelayMs);
+          }
+        }
+        throw lastError || new Error('Plus 卡密取码站邮箱取码失败。');
+      })
+      .catch((error) => ({ error: error?.message || String(error) }));
+  }
+
   function createStep8Executor(deps = {}) {
     const {
       addLog: rawAddLog = async () => {},
@@ -130,76 +210,96 @@
       return tab;
     }
 
+    async function reloadPlusCardKeySiteTab(tab, visibleStep, timeoutMs = 30000) {
+      if (!tab?.id || !chrome?.tabs?.reload || !chrome?.tabs?.onUpdated || !chrome?.tabs?.get) {
+        throw new Error(`步骤 ${visibleStep}：无法刷新 Plus 卡密取码站标签页。`);
+      }
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+          clearTimeout(timer);
+          chrome.tabs.onUpdated.removeListener(listener);
+        };
+        const settle = (fn, value) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          fn(value);
+        };
+        const listener = (updatedTabId, changeInfo, updatedTab) => {
+          if (updatedTabId !== tab.id || changeInfo.status !== 'complete') return;
+          settle(resolve, updatedTab);
+        };
+        const timer = setTimeout(() => {
+          settle(reject, new Error(`步骤 ${visibleStep}：刷新 Plus 卡密取码站超时。`));
+        }, timeoutMs);
+
+        chrome.tabs.onUpdated.addListener(listener);
+        chrome.tabs.reload(tab.id, {}, () => {
+          if (chrome.runtime.lastError) {
+            settle(reject, new Error(chrome.runtime.lastError.message || `步骤 ${visibleStep}：刷新 Plus 卡密取码站失败。`));
+            return;
+          }
+          chrome.tabs.get(tab.id, (reloadedTab) => {
+            if (chrome.runtime.lastError) {
+              settle(reject, new Error(chrome.runtime.lastError.message || `步骤 ${visibleStep}：读取刷新后的 Plus 卡密取码站失败。`));
+              return;
+            }
+            if (reloadedTab?.status === 'complete') {
+              settle(resolve, reloadedTab);
+            }
+          });
+        });
+      });
+    }
+
     async function fetchPlusCardKeyLoginCode(visibleStep) {
       if (!chrome?.scripting?.executeScript) {
         throw new Error(`步骤 ${visibleStep}：当前运行环境不支持在 Plus 卡密取码站执行取码脚本。`);
       }
-      const tab = await getPlusCardKeySiteTab(visibleStep);
-      const [{ result } = {}] = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: plusCardKeyFetchCodeInjectedRunner,
-      });
-      if (result?.error) {
-        throw new Error(result.error);
-      }
-      const code = normalizePlusCardKeyVerificationCode(result?.code);
-      if (!code) {
-        throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站未返回有效验证码。`);
-      }
-      return { code };
-    }
-
-    function plusCardKeyFetchCodeInjectedRunner() {
-      const CODE_PATTERN = /(?:验证码|verification\s*code|code)[\s:：是为-]*([0-9](?:[\s-]?[0-9]){3,7})/i;
-      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      const normalize = (value = '') => String(value || '').trim();
-
-      function isVisible(element) {
-        if (!element) return false;
-        const rect = element.getBoundingClientRect();
-        const style = getComputedStyle(element);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-      }
-
-      function getText(element) {
-        return normalize(element?.innerText || element?.textContent || element?.value || '');
-      }
-
-      function findClickableByText(pattern) {
-        const elements = [...document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], a')];
-        return elements.find((element) => isVisible(element) && pattern.test(getText(element))) || null;
-      }
-
-      function extractCode() {
-        const formValues = [...document.querySelectorAll('input, textarea')]
-          .map((input) => normalize(input.value))
-          .filter(Boolean);
-        const text = normalize([document.body?.innerText || '', ...formValues].join(' ')).replace(/\s+/g, ' ');
-        const keywordMatch = text.match(CODE_PATTERN);
-        if (keywordMatch?.[1]) return keywordMatch[1].replace(/\D+/g, '');
-        const looseMatch = text.match(/\b(\d{4,8})\b/);
-        return looseMatch?.[1] || '';
-      }
-
-      async function waitFor(check, timeoutMs, errorMessage) {
-        const start = Date.now();
-        while (Date.now() - start < timeoutMs) {
-          const value = check();
-          if (value) return value;
-          await sleep(300);
-        }
-        throw new Error(errorMessage);
-      }
-
-      return Promise.resolve()
-        .then(async () => {
-          const button = findClickableByText(/邮箱取码|取码|获取验证码/i);
-          if (!button) throw new Error('Plus 卡密取码站未找到“邮箱取码”按钮。');
-          button.click();
-          const code = await waitFor(extractCode, 60000, 'Plus 卡密取码站邮箱取码超时，未识别到验证码。');
+      let lastError = null;
+      let refreshAttempt = 0;
+      while (true) {
+        throwIfStopped();
+        const tab = await getPlusCardKeySiteTab(visibleStep);
+        try {
+          const [{ result } = {}] = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: plusCardKeyFetchCodeInjectedRunner,
+          });
+          if (result?.error) {
+            throw new Error(result.error);
+          }
+          const code = normalizePlusCardKeyVerificationCode(result?.code);
+          if (!code) {
+            throw new Error(`步骤 ${visibleStep}：Plus 卡密取码站未返回有效验证码。`);
+          }
           return { code };
-        })
-        .catch((error) => ({ error: error?.message || String(error) }));
+        } catch (error) {
+          lastError = error;
+          const message = error?.message || String(error);
+          if (!/failed to fetch|网络|请求失败|邮箱取码超时|未识别到验证码|未返回有效验证码/i.test(message)) {
+            throw error;
+          }
+          refreshAttempt += 1;
+          const remainingMs = typeof getOAuthFlowRemainingMs === 'function'
+            ? await getOAuthFlowRemainingMs({
+              step: visibleStep,
+              actionLabel: 'Plus 卡密取码站邮箱取码',
+            }).catch(() => null)
+            : null;
+          if (Number.isFinite(remainingMs) && remainingMs <= 5000) {
+            throw lastError;
+          }
+          await addLog(`步骤 ${visibleStep}：Plus 卡密取码站邮箱取码失败，正在刷新页面后重试（第 ${refreshAttempt} 轮）：${message}`, 'warn');
+          await reloadPlusCardKeySiteTab(tab, visibleStep).catch(async (reloadError) => {
+            await addLog(`步骤 ${visibleStep}：刷新 Plus 卡密取码站失败，稍后继续重试：${reloadError?.message || reloadError}`, 'warn');
+          });
+          if (typeof sleepWithStop === 'function') {
+            await sleepWithStop(1500);
+          }
+        }
+      }
     }
 
     function getAuthLoginStepForVisibleStep(visibleStep) {
@@ -1111,5 +1211,10 @@
     };
   }
 
-  return { createStep8Executor };
+  return {
+    createStep8Executor,
+    _test: {
+      plusCardKeyFetchCodeInjectedRunner,
+    },
+  };
 });

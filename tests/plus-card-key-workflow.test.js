@@ -277,3 +277,49 @@ test('plus card exchange does not retry confirmed invalid card errors', async ()
     globalThis.Event = originalEvent;
   }
 });
+
+test('plus card fetch code retries clicks when card site reports failed fetch', async () => {
+  const originalDocument = globalThis.document;
+  const originalGetComputedStyle = globalThis.getComputedStyle;
+
+  let clickCount = 0;
+  let bodyText = '验证码：1111';
+  const fetchCodeButton = {
+    innerText: '邮箱取码',
+    getBoundingClientRect() {
+      return { width: 100, height: 24 };
+    },
+    click() {
+      clickCount += 1;
+      if (clickCount < 3) {
+        bodyText = '验证码：1111 Error: Failed to fetch';
+        return;
+      }
+      bodyText = '验证码：3358';
+    },
+  };
+
+  try {
+    globalThis.getComputedStyle = () => ({ visibility: 'visible', display: 'block' });
+    globalThis.document = {
+      body: {
+        get innerText() {
+          return bodyText;
+        },
+      },
+      querySelectorAll(selector) {
+        if (/^button/.test(selector)) return [fetchCodeButton];
+        return [];
+      },
+    };
+
+    const result = await globalThis.PlusCardKeyWorkflow._test.cardSiteInjectedRunner('fetchCode', [
+      { maxAttempts: 3, settleMs: 1, clickTimeoutMs: 5, retryDelayMs: 1, pollMs: 1 },
+    ]);
+    assert.equal(clickCount, 3);
+    assert.deepEqual(result, { code: '3358' });
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.getComputedStyle = originalGetComputedStyle;
+  }
+});
