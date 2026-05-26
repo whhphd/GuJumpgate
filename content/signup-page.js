@@ -4613,15 +4613,8 @@ async function finalizeStep6VerificationReady(options = {}) {
   const settleDelayMs = 3000;
   let round = 0;
 
-  while (Date.now() - start < timeout && round < maxRounds) {
-    throwIfStopped();
-    round += 1;
-    log(`确认页面是否稳定停留在登录验证码阶段（第 ${round}/${maxRounds} 轮，先等待 3 秒）...`, 'info', { step: visibleStep, stepKey: 'oauth-login' });
-    await sleep(settleDelayMs);
-
-    const rawSnapshot = inspectLoginAuthState();
-    const snapshot = normalizeStep6Snapshot(rawSnapshot);
-
+  const resolveSnapshot = async (snapshot, currentVia = via, options = {}) => {
+    const allowRecoverableState = options.allowRecoverableState !== false;
     if (snapshot.state === 'verification_page' || (allowPhoneVerificationPage && snapshot.state === 'phone_verification_page')) {
       log(
         snapshot.state === 'phone_verification_page' ? '登录手机验证码页面已稳定就绪。' : '登录验证码页面已稳定就绪。',
@@ -4629,7 +4622,7 @@ async function finalizeStep6VerificationReady(options = {}) {
         { step: visibleStep, stepKey: 'oauth-login' }
       );
       return createStep6SuccessResult(snapshot, {
-        via,
+        via: currentVia,
         loginVerificationRequestedAt,
       });
     }
@@ -4637,18 +4630,18 @@ async function finalizeStep6VerificationReady(options = {}) {
     if (snapshot.state === 'oauth_consent_page') {
       log('认证页已直接进入 OAuth 授权页，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
       return createStep6OAuthConsentSuccessResult(snapshot, {
-        via: `${via}_oauth_consent`,
+        via: `${currentVia}_oauth_consent`,
       });
     }
 
     if (snapshot.state === 'add_email_page') {
       log('认证页已进入添加邮箱页，登录阶段完成。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
       return createStep6AddEmailSuccessResult(snapshot, {
-        via: `${via}_add_email`,
+        via: `${currentVia}_add_email`,
       });
     }
 
-    if (snapshot.state === 'login_timeout_error_page') {
+    if (allowRecoverableState && snapshot.state === 'login_timeout_error_page') {
       log(`页面进入登录超时报错页，准备自动恢复后重试步骤 ${visibleStep}。`, 'warn', { step: visibleStep, stepKey: 'oauth-login' });
       return createStep6LoginTimeoutRecoverableResult(
         'login_timeout_error_page',
@@ -4658,7 +4651,7 @@ async function finalizeStep6VerificationReady(options = {}) {
       );
     }
 
-    if (snapshot.state === 'password_page' || snapshot.state === 'email_page') {
+    if (allowRecoverableState && (snapshot.state === 'password_page' || snapshot.state === 'email_page')) {
       return createStep6RecoverableResult('verification_page_unstable', snapshot, {
         message: `页面曾进入登录验证码阶段，但又回到了${getLoginAuthStateLabel(snapshot)}，准备重新执行步骤 ${visibleStep}。`,
         loginVerificationRequestedAt,
@@ -4669,7 +4662,7 @@ async function finalizeStep6VerificationReady(options = {}) {
       if (skipLoginVerificationOnPhoneStage) {
         log('认证页已进入手机号页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
         return createStep6PhoneStageSuccessResult(snapshot, {
-          via: `${via}_add_phone`,
+          via: `${currentVia}_add_phone`,
         });
       }
       throw new Error(`登录验证码页面准备过程中页面进入手机号页面。URL: ${snapshot.url}`);
@@ -4678,62 +4671,40 @@ async function finalizeStep6VerificationReady(options = {}) {
     if (snapshot.state === 'phone_verification_page' && skipLoginVerificationOnPhoneStage) {
       log('认证页已进入手机验证码页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
       return createStep6PhoneStageSuccessResult(snapshot, {
-        via: `${via}_phone_verification`,
+        via: `${currentVia}_phone_verification`,
       });
+    }
+
+    return null;
+  };
+
+  const immediateSnapshot = normalizeStep6Snapshot(inspectLoginAuthState());
+  const immediateResult = await resolveSnapshot(immediateSnapshot, `${via}_immediate`, {
+    allowRecoverableState: false,
+  });
+  if (immediateResult) {
+    return immediateResult;
+  }
+
+  while (Date.now() - start < timeout && round < maxRounds) {
+    throwIfStopped();
+    round += 1;
+    log(`确认页面是否稳定停留在登录验证码阶段（第 ${round}/${maxRounds} 轮，等待页面短暂稳定）...`, 'info', { step: visibleStep, stepKey: 'oauth-login' });
+    await sleep(settleDelayMs);
+
+    const rawSnapshot = inspectLoginAuthState();
+    const snapshot = normalizeStep6Snapshot(rawSnapshot);
+    const resolved = await resolveSnapshot(snapshot);
+    if (resolved) {
+      return resolved;
     }
   }
 
   const rawSnapshot = inspectLoginAuthState();
   const snapshot = normalizeStep6Snapshot(rawSnapshot);
-  if (snapshot.state === 'verification_page' || (allowPhoneVerificationPage && snapshot.state === 'phone_verification_page')) {
-    log(
-      snapshot.state === 'phone_verification_page' ? '登录手机验证码页面已稳定就绪。' : '登录验证码页面已稳定就绪。',
-      'ok',
-      { step: visibleStep, stepKey: 'oauth-login' }
-    );
-    return createStep6SuccessResult(snapshot, {
-      via,
-      loginVerificationRequestedAt,
-    });
-  }
-  if (snapshot.state === 'oauth_consent_page') {
-    log('认证页已直接进入 OAuth 授权页，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
-    return createStep6OAuthConsentSuccessResult(snapshot, {
-      via: `${via}_oauth_consent`,
-    });
-  }
-  if (snapshot.state === 'add_email_page') {
-    log('认证页已进入添加邮箱页，登录阶段完成。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
-    return createStep6AddEmailSuccessResult(snapshot, {
-      via: `${via}_add_email`,
-    });
-  }
-  if (snapshot.state === 'add_phone_page' && skipLoginVerificationOnPhoneStage) {
-    log('认证页已进入手机号页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
-    return createStep6PhoneStageSuccessResult(snapshot, {
-      via: `${via}_add_phone`,
-    });
-  }
-  if (snapshot.state === 'phone_verification_page' && skipLoginVerificationOnPhoneStage) {
-    log('认证页已进入手机验证码页面，跳过登录验证码步骤。', 'ok', { step: visibleStep, stepKey: 'oauth-login' });
-    return createStep6PhoneStageSuccessResult(snapshot, {
-      via: `${via}_phone_verification`,
-    });
-  }
-  if (snapshot.state === 'login_timeout_error_page') {
-    log(`页面进入登录超时报错页，准备自动恢复后重试步骤 ${visibleStep}。`, 'warn', { step: visibleStep, stepKey: 'oauth-login' });
-    return createStep6LoginTimeoutRecoverableResult(
-      'login_timeout_error_page',
-      snapshot,
-      '登录验证码页面准备就绪前进入登录超时报错页。',
-      { visibleStep }
-    );
-  }
-  if (snapshot.state === 'password_page' || snapshot.state === 'email_page') {
-    return createStep6RecoverableResult('verification_page_unstable', snapshot, {
-      message: `页面曾进入登录验证码阶段，但又回到了${getLoginAuthStateLabel(snapshot)}，准备重新执行步骤 ${visibleStep}。`,
-      loginVerificationRequestedAt,
-    });
+  const finalResult = await resolveSnapshot(snapshot);
+  if (finalResult) {
+    return finalResult;
   }
 
   return createStep6RecoverableResult('verification_page_finalize_unknown', snapshot, {
@@ -5212,6 +5183,57 @@ async function waitForVerificationCodeTarget(timeout = 10000) {
   throw new Error('未找到验证码输入框。URL: ' + location.href);
 }
 
+function getFastVerificationAdvanceState(step, options = {}) {
+  if (step === 4) {
+    const postVerificationState = getStep4PostVerificationState({ ignoreVerificationVisibility: true });
+    if (postVerificationState?.state === 'logged_in_home') {
+      return {
+        success: true,
+        skipProfileStep: true,
+        url: postVerificationState.url || location.href,
+      };
+    }
+    if (postVerificationState?.state === 'step5') {
+      return { success: true };
+    }
+    if (options?.purpose === 'signup' && isEmailVerificationPage()) {
+      return {
+        success: true,
+        emailVerificationRequired: true,
+        emailVerificationPage: true,
+        url: location.href,
+      };
+    }
+  }
+
+  if (step === 8) {
+    if (isStep8Ready()) {
+      return { success: true };
+    }
+    if (isAddPhonePageReady()) {
+      return { success: true, addPhonePage: true, url: location.href };
+    }
+  }
+
+  return null;
+}
+
+async function waitForVerificationAutoAdvance(step, timeout = 500, options = {}) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    throwIfStopped();
+    const state = getFastVerificationAdvanceState(step, options);
+    if (state) {
+      return state;
+    }
+    if (is405MethodNotAllowedPage()) {
+      return null;
+    }
+    await sleep(100);
+  }
+  return getFastVerificationAdvanceState(step, options);
+}
+
 async function waitForSplitVerificationInputsFilled(inputs, code, timeout = 2500) {
   const expected = String(code || '').slice(0, 6);
   const start = Date.now();
@@ -5357,8 +5379,17 @@ async function fillVerificationCode(step, payload) {
       log(`步骤 ${step}：分格验证码输入框已稳定显示 ${code}。`, 'info');
     }
 
-    await sleep(800);
-    const splitSubmitBtn = await waitForVerificationSubmitButton(splitInputs[0], 2000).catch(() => null);
+    const fastSplitOutcome = await waitForVerificationAutoAdvance(step, 500, payload);
+    if (fastSplitOutcome) {
+      log(`步骤 ${step}：验证码填写后页面已自动推进，跳过提交按钮等待。`, 'ok');
+      if (combinedSignupProfilePage) {
+        fastSplitOutcome.skipProfileStep = true;
+        fastSplitOutcome.skipProfileStepReason = 'combined_verification_profile';
+      }
+      return fastSplitOutcome;
+    }
+
+    const splitSubmitBtn = await waitForVerificationSubmitButton(splitInputs[0], 2500).catch(() => null);
     if (splitSubmitBtn) {
       await humanPause(450, 1200);
       await performOperationWithDelay({ stepKey: 'fetch-signup-code', kind: 'submit', label: 'submit-code' }, async () => {
@@ -5396,8 +5427,16 @@ async function fillVerificationCode(step, payload) {
   });
   log(`步骤 ${step}：验证码已填写`);
 
-  // Submit
-  await sleep(800);
+  const fastOutcome = await waitForVerificationAutoAdvance(step, 500, payload);
+  if (fastOutcome) {
+    log(`步骤 ${step}：验证码填写后页面已自动推进，跳过提交按钮等待。`, 'ok');
+    if (combinedSignupProfilePage) {
+      fastOutcome.skipProfileStep = true;
+      fastOutcome.skipProfileStepReason = 'combined_verification_profile';
+    }
+    return fastOutcome;
+  }
+
   const submitBtn = await waitForVerificationSubmitButton(codeInput, 5000).catch(() => null);
 
   if (submitBtn) {

@@ -1,5 +1,8 @@
 (function attachOperationDelay(root) {
   const OPERATION_DELAY_MS = 2000;
+  const FAST_OPERATION_DELAY_MS = 250;
+  const INSTANT_OPERATION_KINDS = new Set(['fill', 'hidden-sync']);
+  const FAST_OPERATION_KINDS = new Set(['select', 'grouped-code']);
   const SETTING_RESTORE_FALLBACK_MS = 50;
   const EXCLUDED_STEP_KEYS = new Set(['confirm-oauth', 'platform-verify']);
   let operationDelayEnabled = true;
@@ -76,12 +79,22 @@
     return getOperationDelayEnabled();
   }
 
+  function getOperationDelayMs(metadata = {}) {
+    const kind = String(metadata.kind || '').trim();
+    if (INSTANT_OPERATION_KINDS.has(kind)) return 0;
+    if (FAST_OPERATION_KINDS.has(kind)) return FAST_OPERATION_DELAY_MS;
+    return OPERATION_DELAY_MS;
+  }
+
   async function performOperationWithDelay(metadata = {}, operation, options = {}) {
     const result = await operation();
     const enabled = await resolveOperationDelayEnabled(metadata, options);
     if (shouldDelayOperation({ ...metadata, enabled })) {
-      const wait = options.sleep || root.sleep;
-      await wait(OPERATION_DELAY_MS);
+      const delayMs = getOperationDelayMs(metadata);
+      if (delayMs > 0) {
+        const wait = options.sleep || root.sleep;
+        await wait(delayMs);
+      }
     }
     return result;
   }
@@ -94,5 +107,14 @@
   });
 
   refreshOperationDelaySetting().catch(() => { operationDelayEnabled = true; });
-  root.CodexOperationDelay = { OPERATION_DELAY_MS, normalizeOperationDelayEnabled, refreshOperationDelaySetting, getOperationDelayEnabled, shouldDelayOperation, performOperationWithDelay };
+  root.CodexOperationDelay = {
+    OPERATION_DELAY_MS,
+    FAST_OPERATION_DELAY_MS,
+    normalizeOperationDelayEnabled,
+    refreshOperationDelaySetting,
+    getOperationDelayEnabled,
+    shouldDelayOperation,
+    getOperationDelayMs,
+    performOperationWithDelay,
+  };
 })(typeof self !== 'undefined' ? self : globalThis);
