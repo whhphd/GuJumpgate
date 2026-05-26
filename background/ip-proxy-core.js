@@ -3032,6 +3032,51 @@ function resolveIpProxyForceDirectAuthEntry(state = {}, fallbackEntry = null) {
   };
 }
 
+function normalizeIpProxyBypassHostPattern(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) {
+    return '';
+  }
+  return normalized.replace(/^https?:\/\//, '').split(/[/?#]/)[0].replace(/:\d+$/, '');
+}
+
+function resolveIpProxyHostnameFromUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+  try {
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    return normalizeIpProxyBypassHostPattern(url.hostname);
+  } catch {
+    return normalizeIpProxyBypassHostPattern(raw);
+  }
+}
+
+function addIpProxyBypassHostPattern(patterns, pattern) {
+  const normalized = normalizeIpProxyBypassHostPattern(pattern);
+  if (!normalized || patterns.includes(normalized)) {
+    return;
+  }
+  patterns.push(normalized);
+}
+
+function buildIpProxyControlPlaneDirectBypassHostPatterns(state = {}) {
+  const patterns = [];
+  addIpProxyBypassHostPattern(patterns, 'plus.keria.cc.cd');
+  addIpProxyBypassHostPattern(patterns, resolveIpProxyHostnameFromUrl(state?.sub2apiUrl));
+  return patterns;
+}
+
+function serializeIpProxyHostPatterns(patterns = []) {
+  return (Array.isArray(patterns) ? patterns : [])
+    .map((pattern) => normalizeIpProxyBypassHostPattern(pattern))
+    .filter(Boolean)
+    .filter((pattern, index, all) => all.indexOf(pattern) === index)
+    .map((pattern) => `'${String(pattern).replace(/'/g, "\\'")}'`)
+    .join(', ');
+}
+
 function buildIpProxyPacScriptWithOptions(entry, options = {}) {
   const normalizedProtocol = normalizeIpProxyProtocol(entry?.protocol || DEFAULT_IP_PROXY_PROTOCOL);
   const host = String(entry?.host || '').trim();
@@ -3041,6 +3086,7 @@ function buildIpProxyPacScriptWithOptions(entry, options = {}) {
   }
   const targetPatterns = IP_PROXY_TARGET_HOST_PATTERNS.map((pattern) => `'${String(pattern).replace(/'/g, "\\'")}'`).join(', ');
   const bypassList = IP_PROXY_BYPASS_LIST.map((pattern) => `'${String(pattern).replace(/'/g, "\\'")}'`).join(', ');
+  const directBypassPatterns = serializeIpProxyHostPatterns(options?.directBypassHostPatterns);
   const forceDirectPatterns = (typeof IP_PROXY_FORCE_DIRECT_HOST_PATTERNS !== 'undefined' && Array.isArray(IP_PROXY_FORCE_DIRECT_HOST_PATTERNS)
     ? IP_PROXY_FORCE_DIRECT_HOST_PATTERNS
     : [])
@@ -3065,6 +3111,22 @@ function FindProxyForURL(url, host) {
   for (var i = 0; i < bypassList.length; i++) {
     var bypass = bypassList[i];
     if (shExpMatch(host, bypass) || host === bypass) {
+      return "DIRECT";
+    }
+  }
+
+  var directBypassPatterns = [${directBypassPatterns}];
+  for (var db = 0; db < directBypassPatterns.length; db++) {
+    var bypassPattern = directBypassPatterns[db];
+    if (bypassPattern.indexOf('*.') === 0) {
+      var bypassSuffix = bypassPattern.substring(1);
+      var bypassHost = bypassPattern.substring(2);
+      if (dnsDomainIs(host, bypassSuffix) || host === bypassHost) {
+        return "DIRECT";
+      }
+      continue;
+    }
+    if (host === bypassPattern || dnsDomainIs(host, '.' + bypassPattern)) {
       return "DIRECT";
     }
   }
@@ -3345,6 +3407,7 @@ async function applyIpProxySettingsFromState(state = {}, options = {}) {
   const pacScript = buildIpProxyPacScriptWithOptions(effectiveEntry, {
     // 优先复用扩展内填写的支付转换代理；未填写时退回当前 IP 代理，避免依赖固定本地端口。
     forceDirectFallback: resolveIpProxyForceDirectFallback(resolvedState, effectiveEntry),
+    directBypassHostPatterns: buildIpProxyControlPlaneDirectBypassHostPatterns(resolvedState),
   });
   if (!pacScript) {
     await setIpProxyLeakGuardEnabled(true);

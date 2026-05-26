@@ -203,10 +203,6 @@
       if (!tab?.id) {
         throw new Error(`步骤 ${visibleStep}：未找到无痕 Plus 卡密取码站标签页，请先在侧边栏完成当前卡密换邮箱后再启动流程。`);
       }
-      if (Number.isInteger(tab.windowId) && tab.windowId > 0 && chrome?.windows?.update) {
-        await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
-      }
-      await chrome.tabs.update(tab.id, { active: true });
       return tab;
     }
 

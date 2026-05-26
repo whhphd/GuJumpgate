@@ -377,7 +377,7 @@
     await chrome.tabs.update(tab.id, { active: true });
   }
 
-  async function createIncognitoCardSiteTab() {
+  async function createIncognitoCardSiteTab(options = {}) {
     await ensureIncognitoAccess();
     if (!chrome?.windows?.create) {
       throw new Error('当前运行环境不支持创建无痕取码站窗口。');
@@ -385,7 +385,7 @@
     const win = await chrome.windows.create({
       url: CARD_SITE_URL,
       incognito: true,
-      focused: true,
+      focused: Boolean(options.focused),
       type: 'normal',
     });
     const tab = Array.isArray(win?.tabs)
@@ -397,7 +397,8 @@
     return tab;
   }
 
-  async function getCardSiteTab() {
+  async function getCardSiteTab(options = {}) {
+    const shouldFocus = Boolean(options.focus);
     async function waitForTabReady(tabId, timeoutMs = 30000) {
       if (!tabId || !chrome?.tabs?.onUpdated || !chrome?.tabs?.get) {
         throw new Error('无法等待卡密取码站标签页加载。');
@@ -439,11 +440,13 @@
     const siteTabs = await chrome.tabs.query({ url: '*://plus.keria.cc.cd/*' });
     const incognitoTab = siteTabs.find((tab) => tab?.id && tab.incognito);
     if (incognitoTab?.id) {
-      await focusTab(incognitoTab);
+      if (shouldFocus) {
+        await focusTab(incognitoTab);
+      }
       return incognitoTab.status === 'complete' ? incognitoTab : waitForTabReady(incognitoTab.id);
     }
 
-    const created = await createIncognitoCardSiteTab();
+    const created = await createIncognitoCardSiteTab({ focused: shouldFocus });
     return waitForTabReady(created?.id);
   }
 
@@ -893,7 +896,7 @@
   }
 
   async function openCardSite() {
-    const tab = await getCardSiteTab();
+    const tab = await getCardSiteTab({ focus: true });
     await focusTab(tab);
   }
 
@@ -1203,6 +1206,7 @@
     classifyFailure: classifyPlusCardKeyFailure,
     _test: {
       cardSiteInjectedRunner,
+      createIncognitoCardSiteTab,
       getNextRunnableEntryFromEntries,
       getRetryStatusForSelectedEntry,
     },
