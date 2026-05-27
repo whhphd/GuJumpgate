@@ -1847,6 +1847,7 @@
         ...(expiresAt > 0 ? { expiresAt } : {}),
         ...(statusAction ? { statusAction } : {}),
         ...(record.source ? { source: String(record.source || '').trim() } : {}),
+        ...(record.ignoreExistingCode ? { ignoreExistingCode: String(record.ignoreExistingCode || '').trim() } : {}),
         ...(record.phoneCodeReceived ? { phoneCodeReceived: true } : {}),
         ...(record.phoneCodeReceivedAt ? { phoneCodeReceivedAt: Math.max(0, Number(record.phoneCodeReceivedAt) || 0) } : {}),
         ...(verificationUrl ? { verificationUrl } : {}),
@@ -4968,6 +4969,15 @@
       }
     }
 
+    function extractPhoneVerificationCodeCandidate(rawCode) {
+      const trimmed = String(rawCode || '').trim();
+      if (!trimmed) {
+        return '';
+      }
+      const digitMatch = trimmed.match(/\b(\d{4,8})\b/);
+      return digitMatch?.[1] || '';
+    }
+
     function isHeroSmsWaitingStatusText(text) {
       return /^STATUS_(WAIT_CODE|WAIT_RETRY|WAIT_RESEND)(?::.+)?$/i.test(String(text || '').trim());
     }
@@ -5002,6 +5012,7 @@
       const start = Date.now();
       let lastStatus = '';
       let prepareRound = 0;
+      let existingCode = '';
 
       while (
         Date.now() - start < FREE_PHONE_REUSE_PREPARE_TIMEOUT_MS
@@ -5045,17 +5056,23 @@
             'info'
           );
 
-          const v2Waiting = statusAction === 'getStatusV2'
+          const v2StatusPayload = statusAction === 'getStatusV2'
             && payload
             && typeof payload === 'object'
-            && !Array.isArray(payload)
-            && !payload.sms?.code
-            && !payload.call?.code;
+            && !Array.isArray(payload);
+          const v2ExistingCode = v2StatusPayload
+            ? extractPhoneVerificationCodeCandidate(payload.sms?.code || payload.call?.code || '')
+            : '';
+          if (v2ExistingCode) {
+            existingCode = existingCode || v2ExistingCode;
+          }
+          const v2Waiting = Boolean(v2StatusPayload);
           if (isHeroSmsReadyForFreshSmsText(statusText) || isHeroSmsWaitingStatusText(statusText) || v2Waiting) {
             return {
               ok: true,
               activation: {
                 ...normalizedActivation,
+                ...(existingCode ? { ignoreExistingCode: existingCode } : {}),
                 source: 'free-auto-reuse',
               },
             };
@@ -5162,13 +5179,11 @@
       const start = Date.now();
       let lastResponse = '';
       let pollCount = 0;
-      const extractVerificationCode = (rawCode) => {
-        const trimmed = String(rawCode || '').trim();
-        if (!trimmed) {
-          return '';
-        }
-        const digitMatch = trimmed.match(/\b(\d{4,8})\b/);
-        return digitMatch?.[1] || '';
+      const extractVerificationCode = extractPhoneVerificationCodeCandidate;
+      const ignoredExistingCode = String(normalizedActivation.ignoreExistingCode || '').trim();
+      const shouldUsePolledCode = (code) => {
+        const normalizedCode = String(code || '').trim();
+        return Boolean(normalizedCode && normalizedCode !== ignoredExistingCode);
       };
       const emitWaitingForCode = async (statusText) => {
         if (typeof options.onWaitingForCode === 'function') {
@@ -5321,7 +5336,7 @@
             || extractVerificationCode(payload.call?.code)
           )
         );
-        if (v2Code) {
+        if (v2Code && shouldUsePolledCode(v2Code)) {
           return v2Code;
         }
 
@@ -5329,6 +5344,11 @@
         if (okMatch) {
           const extractedCode = extractVerificationCode(okMatch[1] || '');
           if (extractedCode) {
+            if (!shouldUsePolledCode(extractedCode)) {
+              await emitWaitingForCode(text || 'STATUS_OK');
+              await sleepWithStop(intervalMs);
+              continue;
+            }
             return extractedCode;
           }
           await emitWaitingForCode(text || 'STATUS_OK');
@@ -8180,6 +8200,7 @@
       isPhoneResendBannedNumberError,
       normalizeActivation,
       pollPhoneActivationCode,
+      prepareFreeReusablePhoneActivation,
       prepareLoginPhoneActivation,
       prepareSignupPhoneActivation,
       reactivatePhoneActivation,
