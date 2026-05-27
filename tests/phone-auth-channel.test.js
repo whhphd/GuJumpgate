@@ -57,7 +57,7 @@ function createElementStub({
   return element;
 }
 
-function createPhoneAuthHarness({ channelOrder }) {
+function createPhoneAuthHarness({ channelOrder, channelPlacement = 'form' }) {
   let selectedChannel = 'whatsapp';
   let submitted = false;
   const events = [];
@@ -96,7 +96,7 @@ function createPhoneAuthHarness({ channelOrder }) {
     },
     querySelectorAll(selector) {
       if (/button\[type="submit"\]/.test(selector)) return [submitButton];
-      if (/button/.test(selector) || /\[role="radio"\]/.test(selector)) {
+      if ((/button/.test(selector) || /\[role="radio"\]/.test(selector)) && channelPlacement === 'form') {
         return [...channelButtons, submitButton];
       }
       return [];
@@ -113,7 +113,10 @@ function createPhoneAuthHarness({ channelOrder }) {
       if (/form\[action\*="\/add-phone"/i.test(selector)) return form;
       return null;
     },
-    querySelectorAll() {
+    querySelectorAll(selector) {
+      if ((/button/.test(selector) || /\[role="radio"\]/.test(selector)) && channelPlacement === 'document') {
+        return channelButtons;
+      }
       return [];
     },
   };
@@ -204,6 +207,25 @@ test('phone auth selects SMS when Text Message is on the right', async () => {
     assert.ok(harness.events.some((event) => event.label === 'phone-channel-sms'));
     assert.equal(result.addPhoneChannel.selectorPresent, true);
     assert.equal(result.addPhoneChannel.selectedChannel, 'sms');
+    assert.deepEqual(result.addPhoneChannel.availableChannels, ['whatsapp', 'sms']);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('phone auth detects SMS selector outside the add-phone form', async () => {
+  const harness = createPhoneAuthHarness({
+    channelOrder: ['whatsapp', 'sms'],
+    channelPlacement: 'document',
+  });
+  try {
+    const result = await harness.helpers.submitPhoneNumber({
+      countryLabel: 'United States',
+      phoneNumber: '+14155552671',
+    });
+    assert.equal(harness.getSelectedChannel(), 'sms');
+    assert.ok(harness.events.some((event) => event.label === 'phone-channel-sms'));
+    assert.equal(result.addPhoneChannel.selectorPresent, true);
     assert.deepEqual(result.addPhoneChannel.availableChannels, ['whatsapp', 'sms']);
   } finally {
     harness.cleanup();

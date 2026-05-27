@@ -1150,6 +1150,15 @@
       return normalizePhoneSmsProvider(activation?.provider || state?.phoneSmsProvider);
     }
 
+    function createProviderScopedState(state = {}, providerId = '') {
+      const provider = normalizePhoneSmsProvider(providerId || state?.phoneSmsProvider);
+      return provider ? { ...state, phoneSmsProvider: provider } : state;
+    }
+
+    function resolvePhoneConfigForActivation(state = {}, activation = {}) {
+      return resolvePhoneConfig(createProviderScopedState(state, getActivationProviderId(activation, state)));
+    }
+
     function getPhoneSmsProviderLabel(providerId) {
       const provider = normalizePhoneSmsProvider(providerId);
       const rootScope = typeof self !== 'undefined' ? self : globalThis;
@@ -4559,7 +4568,7 @@
         }
       }
 
-      const config = resolvePhoneConfig(state);
+      const config = resolvePhoneConfigForActivation(state, normalizedActivation);
       if (config.provider === PHONE_SMS_PROVIDER_5SIM) {
         const reuseProduct = normalizeFiveSimCountryCode(
           normalizedActivation.serviceCode || config.product || DEFAULT_FIVE_SIM_PRODUCT,
@@ -4613,7 +4622,7 @@
         );
         return `free reuse setStatus(${normalizedStatus}) skipped`;
       }
-      const config = resolvePhoneConfig(state);
+      const config = resolvePhoneConfigForActivation(state, normalizedActivation);
       if (config.provider === PHONE_SMS_PROVIDER_5SIM) {
         const endpoint = normalizedStatus === 6
           ? `/user/finish/${normalizedActivation.activationId}`
@@ -4906,7 +4915,11 @@
     }
 
     async function requestAdditionalPhoneSms(state = {}, activation) {
-      const config = resolvePhoneConfig(state);
+      const normalizedActivation = normalizeActivation(activation);
+      if (!normalizedActivation) {
+        return;
+      }
+      const config = resolvePhoneConfigForActivation(state, normalizedActivation);
       if (config.provider !== PHONE_SMS_PROVIDER_HERO) {
         if (getActivationProviderId(activation, state) === PHONE_SMS_PROVIDER_SMSBOWER) {
           const provider = getSmsBowerProviderForState(state);
@@ -4975,7 +4988,7 @@
       }
 
       const statusAction = resolveActivationStatusAction(normalizedActivation);
-      const config = resolveHeroSmsPhoneConfig(state);
+      const config = resolvePhoneConfigForActivation(state, normalizedActivation);
       const start = Date.now();
       let lastStatus = '';
       let prepareRound = 0;
@@ -5123,7 +5136,7 @@
       }
       const statusAction = resolveActivationStatusAction(normalizedActivation);
 
-      const config = resolvePhoneConfig(state);
+      const config = resolvePhoneConfigForActivation(state, normalizedActivation);
       const configuredTimeoutMs = Math.max(1000, Number(options.timeoutMs) || 0);
       const timeoutMs = configuredTimeoutMs || (
         typeof getOAuthFlowStepTimeoutMs === 'function'
@@ -5821,6 +5834,9 @@
       if (isPhoneSignupIdentityState(state)) {
         return null;
       }
+      if (normalizePhoneSmsProvider(state?.phoneSmsProvider) !== PHONE_SMS_PROVIDER_HERO) {
+        return null;
+      }
       if (!normalizeFreePhoneReuseEnabled(state?.freePhoneReuseEnabled)) {
         return null;
       }
@@ -5869,7 +5885,7 @@
         return prepared.activation;
       }
 
-      const fillResult = await submitPhoneNumber(tabId, freeReusableActivation.phoneNumber, freeReusableActivation);
+      const fillResult = await submitPhoneNumber(tabId, freeReusableActivation.phoneNumber, freeReusableActivation, { state });
       await clearCurrentActivation();
       const message = `开始手动复用手机 ${freeReusableActivation.phoneNumber}，请到 SMS 上刷新。`;
       await addLog(`步骤 9：${message}`, 'warn');

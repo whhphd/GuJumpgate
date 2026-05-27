@@ -426,7 +426,7 @@
     function getChannelOptionsFromRoot(root, locationLabel = '') {
       if (!root) return [];
       const candidates = Array.from(root.querySelectorAll(
-        'button, [role="radio"], [role="tab"], input[type="radio"], input[type="button"], input[type="submit"]'
+        'button, [role="radio"], [role="tab"], [role="button"], input[type="radio"], input[type="button"], input[type="submit"]'
       ));
       return candidates
         .map((element) => ({
@@ -443,8 +443,23 @@
         .filter((option) => option.channel && isVisibleElement(option.element));
     }
 
+    function dedupePhoneChannelOptions(options = []) {
+      const seen = new Set();
+      return options.filter((option) => {
+        const elementKey = option.element || `${option.channel}:${option.text}`;
+        if (seen.has(elementKey)) {
+          return false;
+        }
+        seen.add(elementKey);
+        return true;
+      });
+    }
+
     function getAddPhoneChannelOptions() {
-      return getChannelOptionsFromRoot(getAddPhoneForm(), 'add-phone');
+      const roots = [getAddPhoneForm(), document].filter(Boolean);
+      return dedupePhoneChannelOptions(
+        roots.flatMap((root) => getChannelOptionsFromRoot(root, 'add-phone'))
+      );
     }
 
     function getPhoneVerificationChannelOptions() {
