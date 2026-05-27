@@ -1880,6 +1880,10 @@
         ?? record.maxPrice
         ?? record.selectedPrice
       );
+      const parsedAttemptedMaxPrice = normalizeHeroSmsPrice(
+        record.attemptedMaxPrice
+        ?? record.requestedMaxPrice
+      );
       const consecutiveFailuresRaw = Number(record.consecutiveFailures);
       return {
         activationId,
@@ -1896,7 +1900,9 @@
         ...(record.source ? { source: String(record.source || '').trim() } : {}),
         ...(record.ignoreExistingCode ? { ignoreExistingCode: String(record.ignoreExistingCode || '').trim() } : {}),
         ...(parsedPrice !== null ? { price: Math.round(parsedPrice * 10000) / 10000 } : {}),
+        ...(parsedAttemptedMaxPrice !== null ? { attemptedMaxPrice: Math.round(parsedAttemptedMaxPrice * 10000) / 10000 } : {}),
         ...(record.phoneCodeReceived ? { phoneCodeReceived: true } : {}),
+        ...(record.selectorScoped ? { selectorScoped: true } : {}),
         ...(record.phoneCodeReceivedAt ? { phoneCodeReceivedAt: Math.max(0, Number(record.phoneCodeReceivedAt) || 0) } : {}),
         ...(verificationUrl ? { verificationUrl } : {}),
         ...(Number.isFinite(consecutiveFailuresRaw)
@@ -4510,6 +4516,7 @@
                 );
                 const activation = parseActivationPayload(payload, buildFallbackActivation(requestAction));
                 if (activation) {
+                  const attemptedPrice = normalizeHeroSmsPrice(maxPrice);
                   const actualPrice = normalizeHeroSmsPrice(activation.price);
                   if (actualPrice !== null && actualPrice > 0) {
                     const normalizedPrice = Math.round(actualPrice * 10000) / 10000;
@@ -4517,6 +4524,9 @@
                     activation.maxPrice = normalizedPrice;
                     activation.selectedPrice = normalizedPrice;
                     rememberActivationAcquiredPrice(activation, normalizedPrice);
+                  }
+                  if (attemptedPrice !== null && attemptedPrice > 0) {
+                    activation.attemptedMaxPrice = Math.round(attemptedPrice * 10000) / 10000;
                   }
                   return {
                     ...activation,
@@ -6281,8 +6291,10 @@
         return;
       }
       const reusableProvider = normalizedActivation.provider;
-      const canPersistReusableActivation = reusableProvider === PHONE_SMS_PROVIDER_HERO
-        || reusableProvider === PHONE_SMS_PROVIDER_5SIM;
+      const canPersistReusableActivation = (
+        reusableProvider === PHONE_SMS_PROVIDER_HERO
+        || reusableProvider === PHONE_SMS_PROVIDER_5SIM
+      ) && !normalizedActivation.selectorScoped;
       if (!canPersistReusableActivation) {
         await clearReusableActivation();
         return;
@@ -6321,6 +6333,7 @@
         normalizedActivation
         && normalizedActivation.provider === PHONE_SMS_PROVIDER_HERO
         && normalizedActivation.source === 'hero-sms-new'
+        && !normalizedActivation.selectorScoped
         && normalizedActivation.phoneCodeReceived
       );
     }
@@ -6373,6 +6386,7 @@
         !normalizedActivation
         || normalizedActivation.provider !== PHONE_SMS_PROVIDER_HERO
         || !normalizedActivation.phoneCodeReceived
+        || normalizedActivation.selectorScoped
         || isFreeAutoReuseActivation(normalizedActivation)
       ) {
         return;
@@ -7577,7 +7591,8 @@
           return;
         }
         const floorPrice = normalizeHeroSmsPrice(
-          normalizedActivation.price
+          normalizedActivation.attemptedMaxPrice
+          ?? normalizedActivation.price
           ?? normalizedActivation.maxPrice
           ?? normalizedActivation.selectedPrice
           ?? getActivationAcquiredPriceHint(normalizedActivation)
@@ -7738,6 +7753,12 @@
                   countryPriceFloorByCountryId: getCountryPriceFloorById(activationState.phoneSmsProvider),
                   skipPreferredActivation: selectorState ? true : preferredActivationExhausted,
                 });
+                if (selectorState) {
+                  activation = {
+                    ...activation,
+                    selectorScoped: true,
+                  };
+                }
                 shouldCancelActivation = true;
                 await persistCurrentActivation(activation);
               }

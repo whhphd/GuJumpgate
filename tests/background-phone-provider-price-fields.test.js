@@ -207,6 +207,7 @@ test('HeroSMS activation expands max price incrementally up to configured limit'
   );
   assert.equal(getNumberUrls.some((url) => url.searchParams.has('fixedPrice')), false);
   assert.equal(activation.price, 0.115);
+  assert.equal(activation.attemptedMaxPrice, 0.11);
 });
 test('HeroSMS activation falls back to configured max price when tiers are below min price', async () => {
   const getNumberUrls = [];
