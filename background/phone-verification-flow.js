@@ -971,6 +971,46 @@
       });
     }
 
+    function buildIncrementalHeroSmsMaxPrices(prices = [], maxPriceLimit = null) {
+      const maxPrice = normalizeHeroSmsPrice(maxPriceLimit);
+      const normalizedPrices = Array.from(
+        new Set(
+          (Array.isArray(prices) ? prices : [])
+            .map((value) => normalizeHeroSmsPrice(value))
+            .filter((value) => value !== null && value > 0 && (maxPrice === null || value <= maxPrice))
+            .map((value) => Math.round(value * 10000) / 10000)
+        )
+      ).sort((left, right) => left - right);
+      if (maxPrice === null || maxPrice <= 0) {
+        return normalizedPrices;
+      }
+      const ceilings = [...normalizedPrices];
+      let next = ceilings.length ? ceilings[ceilings.length - 1] : Math.min(maxPrice, 0.05);
+      const multipliers = [1.25, 1.5, 2];
+      while (next < maxPrice) {
+        let candidate = null;
+        for (const multiplier of multipliers) {
+          const stepped = Math.round(next * multiplier * 10000) / 10000;
+          if (stepped > next) {
+            candidate = stepped;
+            break;
+          }
+        }
+        if (candidate === null || candidate <= next) {
+          break;
+        }
+        if (candidate > maxPrice) {
+          candidate = maxPrice;
+        }
+        ceilings.push(candidate);
+        next = candidate;
+      }
+      if (!ceilings.includes(maxPrice)) {
+        ceilings.push(maxPrice);
+      }
+      return Array.from(new Set(ceilings)).sort((left, right) => left - right);
+    }
+
     function shouldUseHeroSmsExpandedPriceLookup(state = {}) {
       if (typeof state?.heroSmsUseExpandedPriceLookup === 'boolean') {
         return state.heroSmsUseExpandedPriceLookup;
@@ -1833,6 +1873,13 @@
       const verificationUrl = String(
         record.verificationUrl ?? record.url ?? record.smsUrl ?? ''
       ).trim();
+      const parsedPrice = normalizeHeroSmsPrice(
+        record.activationCost
+        ?? record.cost
+        ?? record.price
+        ?? record.maxPrice
+        ?? record.selectedPrice
+      );
       const consecutiveFailuresRaw = Number(record.consecutiveFailures);
       return {
         activationId,
@@ -1848,9 +1895,7 @@
         ...(statusAction ? { statusAction } : {}),
         ...(record.source ? { source: String(record.source || '').trim() } : {}),
         ...(record.ignoreExistingCode ? { ignoreExistingCode: String(record.ignoreExistingCode || '').trim() } : {}),
-        ...(normalizeHeroSmsPrice(record.price ?? record.maxPrice ?? record.selectedPrice) !== null
-          ? { price: Math.round(normalizeHeroSmsPrice(record.price ?? record.maxPrice ?? record.selectedPrice) * 10000) / 10000 }
-          : {}),
+        ...(parsedPrice !== null ? { price: Math.round(parsedPrice * 10000) / 10000 } : {}),
         ...(record.phoneCodeReceived ? { phoneCodeReceived: true } : {}),
         ...(record.phoneCodeReceivedAt ? { phoneCodeReceivedAt: Math.max(0, Number(record.phoneCodeReceivedAt) || 0) } : {}),
         ...(verificationUrl ? { verificationUrl } : {}),
@@ -4260,7 +4305,7 @@
       const requestActions = config.provider === PHONE_SMS_PROVIDER_SMSPOOL
         ? ['getNumber']
         : config.provider === PHONE_SMS_PROVIDER_HERO
-        ? ['getNumberV2', 'getNumber']
+        ? ['getNumberV2']
         : ['getNumber', 'getNumberV2'];
       const configuredAcquireRounds = normalizePhoneActivationRetryRounds(
         state?.heroSmsActivationRetryRounds
@@ -4366,7 +4411,10 @@
           const candidatePrices = rangeFilteredPrices.length
             ? rangeFilteredPrices
             : (hasPriceBounds ? [] : orderedPrices);
-          const floorFilteredPrices = filterPriceCandidatesAboveFloor(candidatePrices, countryPriceFloor);
+          const heroIncrementalPrices = config.provider === PHONE_SMS_PROVIDER_HERO
+            ? buildIncrementalHeroSmsMaxPrices(candidatePrices, maxPriceLimit)
+            : candidatePrices;
+          const floorFilteredPrices = filterPriceCandidatesAboveFloor(heroIncrementalPrices, countryPriceFloor);
           const hasCountryPriceFloor = (
             countryPriceFloor !== null
             && Number.isFinite(Number(countryPriceFloor))
@@ -4379,13 +4427,14 @@
           // Same rule as 5sim/NexSMS: once floor is set, never re-try lower/equal tiers.
           // Keep a probe fallback only for HeroSMS (single-country/no-tier environments),
           // so replacement-limit behavior remains stable while still allowing country fallback.
-          const pricesToTry = hasCountryPriceFloor
+          const basePricesToTry = hasCountryPriceFloor
             ? (
               floorFilteredPrices.length
                 ? floorFilteredPrices
-                : (hasAlternativeCountries ? [] : candidatePrices.slice(0, 1))
+                : []
             )
-            : (floorFilteredPrices.length ? floorFilteredPrices : candidatePrices);
+            : (floorFilteredPrices.length ? floorFilteredPrices : heroIncrementalPrices);
+          const pricesToTry = basePricesToTry;
           const rawTierText = Array.isArray(pricePlan?.prices) && pricePlan.prices.length
             ? pricePlan.prices
                 .map((value) => (value === null || value === undefined ? '自动' : String(value)))
@@ -4461,9 +4510,9 @@
                 );
                 const activation = parseActivationPayload(payload, buildFallbackActivation(requestAction));
                 if (activation) {
-                  const numericPrice = Number(maxPrice);
-                  if (Number.isFinite(numericPrice) && numericPrice > 0) {
-                    const normalizedPrice = Math.round(numericPrice * 10000) / 10000;
+                  const actualPrice = normalizeHeroSmsPrice(activation.price);
+                  if (actualPrice !== null && actualPrice > 0) {
+                    const normalizedPrice = Math.round(actualPrice * 10000) / 10000;
                     activation.price = normalizedPrice;
                     activation.maxPrice = normalizedPrice;
                     activation.selectedPrice = normalizedPrice;
@@ -7492,9 +7541,9 @@
           .filter(Boolean);
       };
 
-      const getCountryPriceFloorById = () => {
+      const getCountryPriceFloorById = (providerId = '') => {
         const activeProvider = normalizePhoneSmsProvider(
-          state?.phoneSmsProvider || activation?.provider || DEFAULT_PHONE_SMS_PROVIDER
+          providerId || state?.phoneSmsProvider || activation?.provider || DEFAULT_PHONE_SMS_PROVIDER
         );
         const floorById = {};
         countryPriceFloorByKey.forEach((price, compoundCountryKey) => {
@@ -7589,6 +7638,7 @@
             || failureCode === 'phone_number_used'
           )
         ) {
+          await setCountryPriceFloorFromActivation(activation, failureCode || failureReason);
           await markCountrySmsFailure(activation.countryId, failureCode || failureReason, activation.provider);
         }
         usedNumberReplacementAttempts += 1;
@@ -7685,7 +7735,7 @@
               } else {
                 activation = await acquirePhoneActivation(activationState, {
                   blockedCountryIds: getBlockedCountryIds(activationState.phoneSmsProvider),
-                  countryPriceFloorByCountryId: selectorState ? {} : getCountryPriceFloorById(),
+                  countryPriceFloorByCountryId: getCountryPriceFloorById(activationState.phoneSmsProvider),
                   skipPreferredActivation: selectorState ? true : preferredActivationExhausted,
                 });
                 shouldCancelActivation = true;
