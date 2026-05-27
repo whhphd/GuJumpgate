@@ -469,6 +469,7 @@ const inputPhoneSignupReloginAfterBindEmail = document.getElementById('input-pho
 const rowSignupPhone = document.getElementById('row-signup-phone');
 const signupMethodButtons = Array.from(document.querySelectorAll('[data-signup-method]'));
 const selectPhoneSmsProvider = document.getElementById('select-phone-sms-provider');
+const selectPhoneSmsSelectorProvider = document.getElementById('select-phone-sms-selector-provider');
 const rowHeroSmsPlatform = document.getElementById('row-hero-sms-platform');
 const rowHeroSmsCountry = document.getElementById('row-hero-sms-country');
 const rowHeroSmsCountryFallback = document.getElementById('row-hero-sms-country-fallback');
@@ -476,6 +477,7 @@ const rowHeroSmsAcquirePriority = document.getElementById('row-hero-sms-acquire-
 const rowHeroSmsApiKey = document.getElementById('row-hero-sms-api-key');
 const rowHeroSmsMaxPrice = document.getElementById('row-hero-sms-max-price');
 const rowPhoneSmsProvider = document.getElementById('row-phone-sms-provider');
+const rowPhoneSmsSelectorProvider = document.getElementById('row-phone-sms-selector-provider');
 const rowPhoneSmsProviderOrder = document.getElementById('row-phone-sms-provider-order');
 const rowPhoneSmsProviderOrderActions = document.getElementById('row-phone-sms-provider-order-actions');
 const rowOoeaoPool = document.getElementById('row-ooeao-pool');
@@ -3903,6 +3905,9 @@ function collectSettingsPayload() {
   const phoneSmsProviderValue = typeof selectPhoneSmsProvider !== 'undefined' && selectPhoneSmsProvider
     ? normalizePhoneSmsProvider(selectPhoneSmsProvider.value)
     : normalizePhoneSmsProvider(latestState?.phoneSmsProvider);
+  const phoneSmsSelectorProviderValue = typeof selectPhoneSmsSelectorProvider !== 'undefined' && selectPhoneSmsSelectorProvider
+    ? String(selectPhoneSmsSelectorProvider.value || '').trim()
+    : String(latestState?.phoneSmsSelectorProvider || '').trim();
   const phoneSmsProviderOrderValue = typeof getSelectedPhoneSmsProviderOrder === 'function'
     ? getSelectedPhoneSmsProviderOrder()
     : (typeof normalizePhoneSmsProviderOrderValue === 'function'
@@ -4628,6 +4633,7 @@ function collectSettingsPayload() {
       ? Boolean(inputPhoneSignupReloginAfterBindEmail.checked)
       : false,
     phoneSmsProvider: phoneSmsProviderValue,
+    phoneSmsSelectorProvider: phoneSmsSelectorProviderValue,
     phoneSmsProviderOrder: phoneSmsProviderOrderValue,
     verificationResendCount: normalizeVerificationResendCount(
       inputVerificationResendCount?.value,
@@ -9578,6 +9584,7 @@ function updatePhoneVerificationSettingsUI() {
 
   const phoneVerificationRows = [
     typeof rowPhoneSmsProvider !== 'undefined' ? rowPhoneSmsProvider : null,
+    typeof rowPhoneSmsSelectorProvider !== 'undefined' ? rowPhoneSmsSelectorProvider : null,
     typeof rowPhoneSmsProviderOrder !== 'undefined' ? rowPhoneSmsProviderOrder : null,
     typeof rowPhoneSmsProviderOrderActions !== 'undefined' ? rowPhoneSmsProviderOrderActions : null,
     typeof rowHeroSmsCountry !== 'undefined' ? rowHeroSmsCountry : null,
@@ -11294,6 +11301,11 @@ function applySettingsState(state) {
     ? DEFAULT_NEX_SMS_SERVICE_CODE
     : 'ot';
   setPhoneSmsProviderSelectValue(restoredPhoneSmsProvider);
+  if (typeof selectPhoneSmsSelectorProvider !== 'undefined' && selectPhoneSmsSelectorProvider) {
+    selectPhoneSmsSelectorProvider.value = state?.phoneSmsSelectorProvider
+      ? normalizePhoneSmsProvider(state.phoneSmsSelectorProvider)
+      : '';
+  }
   const restoredPhoneSmsProviderOrder = typeof applyPhoneSmsProviderOrderSelection === 'function'
     ? applyPhoneSmsProviderOrderSelection(state?.phoneSmsProviderOrder || [], {
       ensureDefault: false,

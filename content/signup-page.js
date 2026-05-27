@@ -6784,6 +6784,23 @@ function getStep8State() {
     buttonText: continueBtn ? getActionText(continueBtn) : '',
   };
 
+  if (state.addPhonePage && typeof phoneAuthHelpers.getAddPhoneChannelOptions === 'function') {
+    const addPhoneChannelOptions = phoneAuthHelpers.getAddPhoneChannelOptions();
+    const selectedOption = addPhoneChannelOptions.find((option) => option.selected) || null;
+    state.addPhoneChannel = {
+      selectorPresent: addPhoneChannelOptions.length > 0,
+      requestedChannel: 'sms',
+      selectedChannel: selectedOption?.channel || '',
+      availableChannels: Array.from(new Set(addPhoneChannelOptions.map((option) => option.channel).filter(Boolean))),
+      changed: false,
+      channelLocation: selectedOption?.location || addPhoneChannelOptions[0]?.location || 'add-phone',
+      channelText: selectedOption?.text || '',
+    };
+    state.phoneChannel = state.addPhoneChannel;
+  } else if (state.phoneVerificationPage && typeof phoneAuthHelpers.getPhoneVerificationChannelMetadata === 'function') {
+    state.phoneChannel = phoneAuthHelpers.getPhoneVerificationChannelMetadata('sms');
+  }
+
   if (continueBtn) {
     try {
       state.rect = getSerializableRect(continueBtn);

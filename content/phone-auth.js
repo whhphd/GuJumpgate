@@ -243,7 +243,7 @@
     }
 
     function getPhoneVerificationForm() {
-      return document.querySelector('form[action*="/phone-verification" i]');
+      return document.querySelector('form[action*="/phone-verification" i], form[action*="/contact-verification" i]');
     }
 
     function getPhoneInput() {
@@ -385,7 +385,7 @@
         || null;
     }
 
-    function getAddPhoneChannelActionText(element) {
+    function getChannelActionText(element) {
       if (!element) return '';
       return [
         element.getAttribute?.('value'),
@@ -395,6 +395,10 @@
         element.innerText,
         element.textContent,
       ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function getAddPhoneChannelActionText(element) {
+      return getChannelActionText(element);
     }
 
     function getAddPhoneChannelFromText(value) {
@@ -419,47 +423,88 @@
       return Boolean(element.checked || element.selected);
     }
 
-    function getAddPhoneChannelOptions() {
-      const form = getAddPhoneForm();
-      if (!form) return [];
-      const candidates = Array.from(form.querySelectorAll(
+    function getChannelOptionsFromRoot(root, locationLabel = '') {
+      if (!root) return [];
+      const candidates = Array.from(root.querySelectorAll(
         'button, [role="radio"], [role="tab"], input[type="radio"], input[type="button"], input[type="submit"]'
       ));
       return candidates
         .map((element) => ({
           element,
-          text: getAddPhoneChannelActionText(element),
+          text: getChannelActionText(element),
+          location: locationLabel,
         }))
         .map((option) => ({
           ...option,
           channel: getAddPhoneChannelFromText(option.text),
+          selected: isAddPhoneChannelOptionSelected(option.element),
+          enabled: isActionEnabled(option.element),
         }))
         .filter((option) => option.channel && isVisibleElement(option.element));
     }
 
-    async function ensureAddPhoneSmsChannelSelected() {
+    function getAddPhoneChannelOptions() {
+      return getChannelOptionsFromRoot(getAddPhoneForm(), 'add-phone');
+    }
+
+    function getPhoneVerificationChannelOptions() {
+      return getChannelOptionsFromRoot(getPhoneVerificationForm(), 'phone-verification');
+    }
+
+    function createPhoneChannelMetadata(options = [], requestedChannel = 'sms', fallbackLocation = '') {
+      const availableChannels = Array.from(new Set(options.map((option) => option.channel).filter(Boolean)));
+      const selectedOption = options.find((option) => option.selected) || null;
+      return {
+        selectorPresent: options.length > 0,
+        requestedChannel,
+        selectedChannel: selectedOption?.channel || '',
+        availableChannels,
+        changed: false,
+        channelLocation: selectedOption?.location || options[0]?.location || fallbackLocation || '',
+        channelText: selectedOption?.text || '',
+      };
+    }
+
+    async function ensureAddPhoneChannelSelected(requestedChannel = 'sms') {
+      const normalizedRequestedChannel = getAddPhoneChannelFromText(requestedChannel) || 'sms';
       const options = getAddPhoneChannelOptions();
+      const metadata = createPhoneChannelMetadata(options, normalizedRequestedChannel, 'add-phone');
       if (!options.length) {
-        return true;
+        return metadata;
       }
 
-      const smsOption = options.find((option) => option.channel === 'sms' && isActionEnabled(option.element))
-        || options.find((option) => option.channel === 'sms');
-      if (!smsOption) {
-        throw new Error('Add-phone page requires SMS/Text Message channel, but only WhatsApp or unknown send-code options were found.');
+      const targetOption = options.find((option) => option.channel === normalizedRequestedChannel && option.enabled)
+        || options.find((option) => option.channel === normalizedRequestedChannel);
+      if (!targetOption) {
+        throw new Error(`Add-phone page requires ${normalizedRequestedChannel.toUpperCase()} channel, but only ${metadata.availableChannels.join('/') || 'unknown'} send-code options were found.`);
       }
-      if (isAddPhoneChannelOptionSelected(smsOption.element)) {
-        return true;
+      if (isAddPhoneChannelOptionSelected(targetOption.element)) {
+        return {
+          ...metadata,
+          selectedChannel: targetOption.channel,
+          channelText: targetOption.text,
+        };
       }
-      if (!isActionEnabled(smsOption.element)) {
-        throw new Error('Add-phone page SMS/Text Message channel is present but disabled.');
+      if (!isActionEnabled(targetOption.element)) {
+        throw new Error(`Add-phone page ${normalizedRequestedChannel.toUpperCase()} channel is present but disabled.`);
       }
 
-      await performOperationWithDelay({ stepKey: 'phone-auth', kind: 'click', label: 'phone-channel-sms' }, async () => {
-        simulateClick(smsOption.element);
+      await performOperationWithDelay({ stepKey: 'phone-auth', kind: 'click', label: `phone-channel-${normalizedRequestedChannel}` }, async () => {
+        simulateClick(targetOption.element);
       });
       await sleep(150);
-      return true;
+      return {
+        ...metadata,
+        selectedChannel: targetOption.channel,
+        channelText: targetOption.text,
+        changed: true,
+      };
+    }
+
+    function getPhoneVerificationChannelMetadata(requestedChannel = 'sms') {
+      const normalizedRequestedChannel = getAddPhoneChannelFromText(requestedChannel) || 'sms';
+      const options = getPhoneVerificationChannelOptions();
+      return createPhoneChannelMetadata(options, normalizedRequestedChannel, 'phone-verification');
     }
 
     function getPhoneVerificationCodeInput() {
@@ -807,10 +852,12 @@
           continue;
         }
         if (isPhoneVerificationPageReady()) {
+          const phoneChannel = getPhoneVerificationChannelMetadata();
           return {
             phoneVerificationPage: true,
             displayedPhone: getPhoneVerificationDisplayedPhone(),
             url: location.href,
+            phoneChannel,
           };
         }
         if (isAddPhonePageReady()) {
@@ -882,12 +929,17 @@
           dispatchInputEvents(hiddenPhoneNumberInput);
         });
       }
-      await ensureAddPhoneSmsChannelSelected();
+      const addPhoneChannel = await ensureAddPhoneChannelSelected(payload.preferredChannel || 'sms');
       await sleep(250);
       await performOperationWithDelay({ stepKey: 'phone-auth', kind: 'submit', label: 'phone-number-submit' }, async () => {
         simulateClick(submitButton);
       });
-      return waitForPhoneVerificationReady();
+      const verificationReady = await waitForPhoneVerificationReady();
+      return {
+        ...verificationReady,
+        addPhoneChannel,
+        phoneChannel: verificationReady?.phoneChannel || addPhoneChannel,
+      };
     }
 
     async function waitForPhoneVerificationOutcome(timeout = 30000) {
@@ -1123,6 +1175,8 @@
     return {
       getPhoneVerificationDisplayedPhone,
       checkPhoneResendError,
+      getAddPhoneChannelOptions,
+      getPhoneVerificationChannelMetadata,
       isPhoneVerificationPageReady,
       resendPhoneVerificationCode,
       returnToAddPhone,

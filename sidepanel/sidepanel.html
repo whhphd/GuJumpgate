@@ -1532,6 +1532,24 @@
                 <option value="chatgpt-api">ChatGPT API 接码</option>
               </select>
             </div>
+            <div class="data-row" id="row-phone-sms-selector-provider" style="display:none;">
+              <span class="data-label">选择器服务商</span>
+              <div class="data-inline">
+                <select id="select-phone-sms-selector-provider" class="data-select mono">
+                  <option value="">跟随主服务商</option>
+                  <option value="hero-sms">HeroSMS</option>
+                  <option value="5sim">5sim</option>
+                  <option value="nexsms">NexSMS</option>
+                  <option value="ooeao">ooeao</option>
+                  <option value="smsbower">SMSBower</option>
+                  <option value="sms-verification-number">SMS Verification Number</option>
+                  <option value="grizzlysms">GrizzlySMS</option>
+                  <option value="smspool">SMSPool</option>
+                  <option value="chatgpt-api">ChatGPT API 接码</option>
+                </select>
+                <span class="data-value hero-sms-country-note">验证码页出现 SMS/WhatsApp 选择时使用，并强制选 SMS；未出现继续用主服务商。</span>
+              </div>
+            </div>
             <div class="data-row" id="row-ooeao-pool" style="display:none;">
               <span class="data-label">ooeao 号码池</span>
               <div class="data-inline ooeao-pool-stack">

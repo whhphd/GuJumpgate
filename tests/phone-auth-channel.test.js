@@ -179,12 +179,15 @@ function createPhoneAuthHarness({ channelOrder }) {
 test('phone auth selects SMS when Text Message is on the left', async () => {
   const harness = createPhoneAuthHarness({ channelOrder: ['sms', 'whatsapp'] });
   try {
-    await harness.helpers.submitPhoneNumber({
+    const result = await harness.helpers.submitPhoneNumber({
       countryLabel: 'United States',
       phoneNumber: '+14155552671',
     });
     assert.equal(harness.getSelectedChannel(), 'sms');
     assert.ok(harness.events.some((event) => event.label === 'phone-channel-sms'));
+    assert.equal(result.addPhoneChannel.selectorPresent, true);
+    assert.equal(result.addPhoneChannel.selectedChannel, 'sms');
+    assert.deepEqual(result.addPhoneChannel.availableChannels, ['sms', 'whatsapp']);
   } finally {
     harness.cleanup();
   }
@@ -193,12 +196,31 @@ test('phone auth selects SMS when Text Message is on the left', async () => {
 test('phone auth selects SMS when Text Message is on the right', async () => {
   const harness = createPhoneAuthHarness({ channelOrder: ['whatsapp', 'sms'] });
   try {
-    await harness.helpers.submitPhoneNumber({
+    const result = await harness.helpers.submitPhoneNumber({
       countryLabel: 'United States',
       phoneNumber: '+14155552671',
     });
     assert.equal(harness.getSelectedChannel(), 'sms');
     assert.ok(harness.events.some((event) => event.label === 'phone-channel-sms'));
+    assert.equal(result.addPhoneChannel.selectorPresent, true);
+    assert.equal(result.addPhoneChannel.selectedChannel, 'sms');
+    assert.deepEqual(result.addPhoneChannel.availableChannels, ['whatsapp', 'sms']);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('phone auth continues without selector metadata when no channel selector is present', async () => {
+  const harness = createPhoneAuthHarness({ channelOrder: [] });
+  try {
+    const result = await harness.helpers.submitPhoneNumber({
+      countryLabel: 'United States',
+      phoneNumber: '+14155552671',
+    });
+    assert.equal(result.addPhoneChannel.selectorPresent, false);
+    assert.equal(result.addPhoneChannel.selectedChannel, '');
+    assert.deepEqual(result.addPhoneChannel.availableChannels, []);
+    assert.ok(!harness.events.some((event) => event.label === 'phone-channel-sms'));
   } finally {
     harness.cleanup();
   }
@@ -212,7 +234,7 @@ test('phone auth refuses to continue when only WhatsApp is available', async () 
         countryLabel: 'United States',
         phoneNumber: '+14155552671',
       }),
-      /短信|SMS|Text Message/i
+      /SMS|Text Message|only whatsapp/i
     );
   } finally {
     harness.cleanup();

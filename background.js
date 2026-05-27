@@ -1153,6 +1153,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   freePhoneReuseAutoEnabled: true,
   signupMethod: DEFAULT_SIGNUP_METHOD,
   phoneSmsProvider: DEFAULT_PHONE_SMS_PROVIDER,
+  phoneSmsSelectorProvider: '',
   phoneSmsProviderOrder: [],
   verificationResendCount: DEFAULT_VERIFICATION_RESEND_COUNT,
   phoneVerificationReplacementLimit: DEFAULT_PHONE_VERIFICATION_REPLACEMENT_LIMIT,
@@ -3651,6 +3652,8 @@ function normalizePersistentSettingValue(key, value) {
       return Boolean(value);
     case 'phoneSmsProvider':
       return normalizePhoneSmsProvider(value);
+    case 'phoneSmsSelectorProvider':
+      return value ? normalizePhoneSmsProvider(value) : '';
     case 'phoneSmsProviderOrder':
       return normalizePhoneSmsProviderOrder(value);
     case 'ooeaoPool':

@@ -682,6 +682,65 @@
       return /whats\s*app/i.test(String(text || ''));
     }
 
+    function normalizePhoneChannelMetadata(value = {}) {
+      if (!value || typeof value !== 'object') {
+        return {
+          selectorPresent: false,
+          requestedChannel: 'sms',
+          selectedChannel: '',
+          availableChannels: [],
+          changed: false,
+          channelLocation: '',
+          channelText: '',
+        };
+      }
+      return {
+        selectorPresent: Boolean(value.selectorPresent),
+        requestedChannel: String(value.requestedChannel || 'sms').trim().toLowerCase() || 'sms',
+        selectedChannel: String(value.selectedChannel || '').trim().toLowerCase(),
+        availableChannels: Array.isArray(value.availableChannels)
+          ? value.availableChannels.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
+          : [],
+        changed: Boolean(value.changed),
+        channelLocation: String(value.channelLocation || '').trim(),
+        channelText: String(value.channelText || '').trim(),
+      };
+    }
+
+    function getSubmitResultPhoneChannel(submitResult = {}) {
+      const phoneChannel = normalizePhoneChannelMetadata(submitResult?.phoneChannel);
+      if (phoneChannel.selectorPresent) {
+        return phoneChannel;
+      }
+      return normalizePhoneChannelMetadata(submitResult?.addPhoneChannel);
+    }
+
+    function normalizeSelectorPhoneProvider(state = {}) {
+      const raw = String(state?.phoneSmsSelectorProvider || '').trim();
+      return raw ? normalizePhoneSmsProvider(raw) : '';
+    }
+
+    function createSelectorProviderState(state = {}, selectorProvider = '') {
+      const provider = normalizePhoneSmsProvider(selectorProvider);
+      return {
+        ...state,
+        phoneSmsProvider: provider,
+        phoneSmsProviderOrder: [provider],
+      };
+    }
+
+    function shouldSwitchToSelectorProvider(state = {}, activation = null, submitResult = {}) {
+      const channel = getSubmitResultPhoneChannel(submitResult);
+      const selectorProvider = normalizeSelectorPhoneProvider(state);
+      const currentProvider = getActivationProviderId(activation, state);
+      return Boolean(
+        channel.selectorPresent
+        && selectorProvider
+        && currentProvider
+        && selectorProvider !== currentProvider
+      );
+    }
+
     function isRecoverableAddPhoneSubmitError(value) {
       const text = String(value || '').trim();
       if (!text) {
@@ -1141,6 +1200,7 @@
         phone_max_usage_exceeded: '手机号达到使用上限',
         resend_server_error: '重发短信后进入服务器错误页',
         whatsapp_resend_channel: '页面重发入口切换为 WhatsApp 通道',
+        selector_provider_switch: '切换选择器服务商',
         unknown: '未知',
       };
       if (reasonMap[normalized]) {
@@ -5434,8 +5494,8 @@
         : resolveCountryConfig(fallbackState));
     }
 
-    async function submitPhoneNumber(tabId, phoneNumber, activation = null) {
-      const state = await getState();
+    async function submitPhoneNumber(tabId, phoneNumber, activation = null, options = {}) {
+      const state = options?.state || await getState();
       const countryConfig = resolveCountryConfigFromActivation(activation, state);
       const visibleStep = normalizeLogStep(activePhoneVerificationLogStep) || 9;
       const timeoutMs = typeof getOAuthFlowStepTimeoutMs === 'function'
@@ -5448,6 +5508,7 @@
           phoneNumber,
           countryId: countryConfig.id,
           countryLabel: countryConfig.label,
+          preferredChannel: options?.preferredChannel || 'sms',
         },
       }, {
         timeoutMs,
@@ -7502,14 +7563,28 @@
               );
             }
             if (!activation) {
-              activation = await handoffFreeReusablePhone(tabId, state);
+              const selectorProvider = normalizeSelectorPhoneProvider(state);
+              const pageChannel = normalizePhoneChannelMetadata(pageState?.phoneChannel || pageState?.addPhoneChannel);
+              const selectorState = pageChannel.selectorPresent && selectorProvider
+                ? createSelectorProviderState(state, selectorProvider)
+                : null;
+              if (selectorState) {
+                await addLog(
+                  `步骤 9：验证码页出现 SMS/WhatsApp 选择器，将切换到 SMS 通道并使用 ${getPhoneSmsProviderLabel(selectorProvider)} 接码。`,
+                  'warn'
+                );
+              } else if (pageChannel.selectorPresent) {
+                await addLog('步骤 9：验证码页出现 SMS/WhatsApp 选择器，已选择 SMS 通道；未配置选择器服务商，继续使用主接码服务商。', 'info');
+              }
+              const activationState = selectorState || state;
+              activation = await handoffFreeReusablePhone(tabId, activationState);
               if (activation) {
                 shouldCancelActivation = false;
               } else {
-                activation = await acquirePhoneActivation(state, {
-                  blockedCountryIds: getBlockedCountryIds(),
-                  countryPriceFloorByCountryId: getCountryPriceFloorById(),
-                  skipPreferredActivation: preferredActivationExhausted,
+                activation = await acquirePhoneActivation(activationState, {
+                  blockedCountryIds: selectorState ? [] : getBlockedCountryIds(),
+                  countryPriceFloorByCountryId: selectorState ? {} : getCountryPriceFloorById(),
+                  skipPreferredActivation: selectorState ? true : preferredActivationExhausted,
                 });
                 shouldCancelActivation = true;
                 await persistCurrentActivation(activation);
@@ -7554,7 +7629,7 @@
 
             let submitResult = null;
             try {
-              submitResult = await submitPhoneNumber(tabId, activation.phoneNumber, activation);
+              submitResult = await submitPhoneNumber(tabId, activation.phoneNumber, activation, { state });
             } catch (submitError) {
               const submitErrorText = String(submitError?.message || submitError || 'unknown error');
               if (isPhoneNumberDeliveryRefusedError(submitErrorText) || isRecoverableAddPhoneSubmitError(submitErrorText)) {
@@ -7625,7 +7700,7 @@
               );
               let retrySubmitError = null;
               try {
-                submitResult = await submitPhoneNumber(tabId, activation.phoneNumber, activation);
+                submitResult = await submitPhoneNumber(tabId, activation.phoneNumber, activation, { state });
               } catch (submitError) {
                 retrySubmitError = submitError;
               }
@@ -7654,6 +7729,59 @@
                   `步骤 9：添加手机号页面持续拒绝当前号码，但没有明确“已使用”状态：${submitResult.errorText || submitResult.url || '未知错误'}。`
                 );
               }
+            }
+
+            const submitPhoneChannel = getSubmitResultPhoneChannel(submitResult);
+            if (shouldSwitchToSelectorProvider(state, activation, submitResult)) {
+              const selectorProvider = normalizeSelectorPhoneProvider(state);
+              usedNumberReplacementAttempts += 1;
+              if (usedNumberReplacementAttempts > maxNumberReplacementAttempts) {
+                throw buildPhoneReplacementLimitError(maxNumberReplacementAttempts, 'selector_provider_switch');
+              }
+              await addLog(
+                `步骤 9：验证码页出现 SMS/WhatsApp 选择器，已切换到 SMS 通道，改用 ${getPhoneSmsProviderLabel(selectorProvider)} 接码（${usedNumberReplacementAttempts}/${maxNumberReplacementAttempts}）。`,
+                'warn'
+              );
+              if (shouldCancelActivation && activation) {
+                await cancelPhoneActivation(state, activation);
+              }
+              await clearCurrentActivation();
+              activation = null;
+              shouldCancelActivation = false;
+              preferReuseExistingActivationOnAddPhone = false;
+              addPhoneReentryWithSameActivation = 0;
+              let returnResult = null;
+              try {
+                returnResult = await returnToAddPhone(tabId);
+              } catch (returnError) {
+                await addLog(`步骤 9：切换选择器服务商前返回添加手机号页面失败。${returnError.message}`, 'warn');
+              }
+              const verifiedAddPhoneState = await ensureAddPhonePageBeforeSubmit(
+                'after selector provider switch',
+                { allowDirectNavigation: true }
+              );
+              pageState = {
+                ...pageState,
+                ...submitResult,
+                ...(returnResult || {}),
+                ...verifiedAddPhoneState,
+                addPhonePage: true,
+                phoneVerificationPage: false,
+                phoneChannel: submitPhoneChannel,
+              };
+              continue;
+            }
+
+            if (!submitPhoneChannel.selectorPresent) {
+              await addLog(
+                `步骤 9：验证码页未出现 SMS/WhatsApp 选择器，继续使用主接码服务商 ${getPhoneSmsProviderLabel(getActivationProviderId(activation, state))}。`,
+                'info'
+              );
+            } else if (normalizeSelectorPhoneProvider(state)) {
+              await addLog(
+                `步骤 9：验证码页出现 SMS/WhatsApp 选择器，已使用 ${getPhoneSmsProviderLabel(getActivationProviderId(activation, state))} 接码。`,
+                'info'
+              );
             }
 
             await addLog('步骤 9：已在添加手机号页面提交号码。', 'info');
