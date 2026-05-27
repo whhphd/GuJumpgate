@@ -4255,6 +4255,8 @@
       );
       const requestActions = config.provider === PHONE_SMS_PROVIDER_SMSPOOL
         ? ['getNumber']
+        : config.provider === PHONE_SMS_PROVIDER_HERO
+        ? ['getNumberV2', 'getNumber']
         : ['getNumber', 'getNumberV2'];
       const configuredAcquireRounds = normalizePhoneActivationRetryRounds(
         state?.heroSmsActivationRetryRounds
@@ -4351,6 +4353,9 @@
           const pricePlan = attempt.pricePlan || await resolvePhoneActivationPricePlan(config, countryConfig, state);
           let noNumbersObservedInCountry = false;
 
+          const heroAutoMaxPrice = config.provider === PHONE_SMS_PROVIDER_HERO
+            ? (maxPriceLimit !== null ? maxPriceLimit : null)
+            : null;
           const orderedPrices = reorderPriceCandidates(pricePlan.prices, acquirePriority, preferredPriceTier);
           const rangeFilteredPrices = filterPriceCandidatesWithinRange(
             orderedPrices,
@@ -4373,7 +4378,9 @@
           // Same rule as 5sim/NexSMS: once floor is set, never re-try lower/equal tiers.
           // Keep a probe fallback only for HeroSMS (single-country/no-tier environments),
           // so replacement-limit behavior remains stable while still allowing country fallback.
-          const pricesToTry = hasCountryPriceFloor
+          const pricesToTry = config.provider === PHONE_SMS_PROVIDER_HERO
+            ? [heroAutoMaxPrice]
+            : hasCountryPriceFloor
             ? (
               floorFilteredPrices.length
                 ? floorFilteredPrices
@@ -4434,9 +4441,12 @@
           for (const maxPrice of pricesToTry) {
             for (const requestAction of requestActions) {
               try {
-                const fixedPrice = !Boolean(pricePlan.syntheticUserLimitProbe);
+                const fixedPrice = config.provider === PHONE_SMS_PROVIDER_HERO
+                  ? false
+                  : !Boolean(pricePlan.syntheticUserLimitProbe);
+                const maxPriceText = maxPrice === null || maxPrice === undefined ? '自动' : maxPrice;
                 await addLog(
-                  `步骤 9：${heroLikeProviderLabel} ${countryConfig.label} 正在尝试${formatHeroSmsActionName(requestAction)}，价格档位 ${maxPrice === null || maxPrice === undefined ? '自动' : maxPrice}。`,
+                  `步骤 9：${heroLikeProviderLabel} ${countryConfig.label} 正在尝试${formatHeroSmsActionName(requestAction)}，maxPrice=${maxPriceText}，fixedPrice=${fixedPrice ? 'true' : 'false'}。`,
                   'info'
                 );
                 const payload = await requestPhoneActivationWithPrice(

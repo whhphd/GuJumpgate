@@ -53,6 +53,50 @@ test('SMSPool activation uses SMSPool price fields instead of HeroSMS price fiel
   assert.equal(getNumberUrls[0].searchParams.get('maxPrice'), '0.08');
 });
 
+
+test('HeroSMS activation uses max price without fixed price', async () => {
+  const getNumberUrls = [];
+  const helpers = createHelpers({
+    fetchImpl: async (url) => {
+      const parsed = new URL(String(url));
+      const action = parsed.searchParams.get('action');
+      if (action === 'getPrices' || action === 'getPricesExtended') {
+        return {
+          ok: true,
+          text: async () => JSON.stringify({ '0.025': { count: 1, physicalCount: 1 } }),
+        };
+      }
+      if (action === 'getNumberV2') {
+        getNumberUrls.push(parsed);
+        return {
+          ok: true,
+          text: async () => JSON.stringify({
+            activationId: 'hero-1',
+            phoneNumber: '15550001111',
+            activationCost: 0.08,
+            countryCode: 1,
+          }),
+        };
+      }
+      throw new Error(`unexpected action: ${action}`);
+    },
+  });
+
+  const activation = await helpers.requestPhoneActivation({
+    phoneSmsProvider: 'hero-sms',
+    heroSmsApiKey: 'hero-key',
+    heroSmsCountryId: 151,
+    heroSmsCountryLabel: 'Chile',
+    heroSmsMaxPrice: '0.5',
+  });
+
+  assert.equal(activation.provider, 'hero-sms');
+  assert.equal(getNumberUrls.length, 1);
+  assert.equal(getNumberUrls[0].searchParams.get('action'), 'getNumberV2');
+  assert.equal(getNumberUrls[0].searchParams.get('maxPrice'), '0.5');
+  assert.equal(getNumberUrls[0].searchParams.has('fixedPrice'), false);
+});
+
 test('Hero-like fallback providers use their own price fields', async () => {
   const getNumberUrls = [];
   const helpers = createHelpers({
