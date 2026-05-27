@@ -7361,6 +7361,26 @@
         return latest;
       };
 
+      const refreshAddPhoneSelectorState = async (currentPageState = {}) => {
+        if (!currentPageState?.addPhonePage || normalizePhoneChannelMetadata(currentPageState?.phoneChannel || currentPageState?.addPhoneChannel).selectorPresent) {
+          return currentPageState;
+        }
+        try {
+          const refreshed = await readPhonePageState(tabId, 6000);
+          if (refreshed?.addPhonePage) {
+            return {
+              ...currentPageState,
+              ...refreshed,
+              addPhonePage: true,
+              phoneVerificationPage: false,
+            };
+          }
+        } catch (error) {
+          await addLog(`步骤 9：刷新添加手机号页面选择器状态失败，将按当前页面状态继续。${error.message}`, 'warn');
+        }
+        return currentPageState;
+      };
+
       const getCountryFailureKey = (countryId, providerId = normalizePhoneSmsProvider(state?.phoneSmsProvider)) => (
         normalizePhoneSmsProvider(providerId) === PHONE_SMS_PROVIDER_FIVE_SIM
           ? normalizeFiveSimCountryId(countryId, '')
@@ -7579,6 +7599,7 @@
               );
             }
             if (!activation) {
+              pageState = await refreshAddPhoneSelectorState(pageState);
               const selectorProvider = normalizeSelectorPhoneProvider(state);
               const pageChannel = normalizePhoneChannelMetadata(pageState?.phoneChannel || pageState?.addPhoneChannel);
               const selectorState = pageChannel.selectorPresent && selectorProvider
