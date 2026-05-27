@@ -1848,6 +1848,9 @@
         ...(statusAction ? { statusAction } : {}),
         ...(record.source ? { source: String(record.source || '').trim() } : {}),
         ...(record.ignoreExistingCode ? { ignoreExistingCode: String(record.ignoreExistingCode || '').trim() } : {}),
+        ...(normalizeHeroSmsPrice(record.price ?? record.maxPrice ?? record.selectedPrice) !== null
+          ? { price: Math.round(normalizeHeroSmsPrice(record.price ?? record.maxPrice ?? record.selectedPrice) * 10000) / 10000 }
+          : {}),
         ...(record.phoneCodeReceived ? { phoneCodeReceived: true } : {}),
         ...(record.phoneCodeReceivedAt ? { phoneCodeReceivedAt: Math.max(0, Number(record.phoneCodeReceivedAt) || 0) } : {}),
         ...(verificationUrl ? { verificationUrl } : {}),
@@ -4354,9 +4357,6 @@
           const pricePlan = attempt.pricePlan || await resolvePhoneActivationPricePlan(config, countryConfig, state);
           let noNumbersObservedInCountry = false;
 
-          const heroAutoMaxPrice = config.provider === PHONE_SMS_PROVIDER_HERO
-            ? (maxPriceLimit !== null ? maxPriceLimit : null)
-            : null;
           const orderedPrices = reorderPriceCandidates(pricePlan.prices, acquirePriority, preferredPriceTier);
           const rangeFilteredPrices = filterPriceCandidatesWithinRange(
             orderedPrices,
@@ -4379,9 +4379,7 @@
           // Same rule as 5sim/NexSMS: once floor is set, never re-try lower/equal tiers.
           // Keep a probe fallback only for HeroSMS (single-country/no-tier environments),
           // so replacement-limit behavior remains stable while still allowing country fallback.
-          const pricesToTry = config.provider === PHONE_SMS_PROVIDER_HERO
-            ? [heroAutoMaxPrice]
-            : hasCountryPriceFloor
+          const pricesToTry = hasCountryPriceFloor
             ? (
               floorFilteredPrices.length
                 ? floorFilteredPrices
@@ -4464,7 +4462,13 @@
                 const activation = parseActivationPayload(payload, buildFallbackActivation(requestAction));
                 if (activation) {
                   const numericPrice = Number(maxPrice);
-                  rememberActivationAcquiredPrice(activation, numericPrice);
+                  if (Number.isFinite(numericPrice) && numericPrice > 0) {
+                    const normalizedPrice = Math.round(numericPrice * 10000) / 10000;
+                    activation.price = normalizedPrice;
+                    activation.maxPrice = normalizedPrice;
+                    activation.selectedPrice = normalizedPrice;
+                    rememberActivationAcquiredPrice(activation, normalizedPrice);
+                  }
                   return {
                     ...activation,
                     countryId: countryConfig.id,
