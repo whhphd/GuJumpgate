@@ -330,6 +330,7 @@
     }
 
     const removePatterns = [
+      /Plus 卡密对应账号已被删除或停用|account_deactivated|账号.*(?:删除|停用|禁用)|账户.*(?:删除|停用|禁用)|account\s+(?:deleted|deactivated|disabled)/i,
       /卡密.*(?:无效|错误|不存在|已使用|已兑换|失效|过期)/i,
       /invalid.*(?:card|key|code)|card.*(?:invalid|used|expired)/i,
       /验证码.*(?:被页面拒绝|错误|无效)|invalid.*verification.*code/i,

@@ -100,6 +100,8 @@ test('plus card key confirmed business failures remove current entry', () => {
     '验证码被页面拒绝：123456',
     '尚未配置 SUB2API 登录邮箱，请先在侧边栏填写。',
     '手机号绑定失败。',
+    '步骤 8：Plus 卡密对应账号已被删除或停用：错误代码：account_deactivated',
+    '身份验证错误：account deleted or disabled',
   ]) {
     assert.equal(classifyFailure(message).removeEntry, true);
     assert.equal(classifyFailure(message).stopQueue, false);

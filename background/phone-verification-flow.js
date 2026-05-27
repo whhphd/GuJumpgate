@@ -7443,9 +7443,9 @@
         countryPriceFloorByKey.delete(countryKey);
       };
 
-      const getBlockedCountryIds = () => {
+      const getBlockedCountryIds = (providerId = '') => {
         const activeProvider = normalizePhoneSmsProvider(
-          state?.phoneSmsProvider || activation?.provider || DEFAULT_PHONE_SMS_PROVIDER
+          providerId || state?.phoneSmsProvider || activation?.provider || DEFAULT_PHONE_SMS_PROVIDER
         );
         return Array.from(countrySmsFailureCounts.entries())
           .filter(([countryKey, count]) => (
@@ -7548,6 +7548,15 @@
               : `号码已被使用：${failureReason}`
           );
         }
+        if (
+          activation
+          && (
+            failureCode === 'phone_delivery_refused'
+            || failureCode === 'phone_number_used'
+          )
+        ) {
+          await markCountrySmsFailure(activation.countryId, failureCode || failureReason, activation.provider);
+        }
         usedNumberReplacementAttempts += 1;
         if (usedNumberReplacementAttempts > maxNumberReplacementAttempts) {
           throw buildPhoneReplacementLimitError(maxNumberReplacementAttempts, failureCode || 'add_phone_rejected');
@@ -7641,7 +7650,7 @@
                 shouldCancelActivation = false;
               } else {
                 activation = await acquirePhoneActivation(activationState, {
-                  blockedCountryIds: selectorState ? [] : getBlockedCountryIds(),
+                  blockedCountryIds: getBlockedCountryIds(activationState.phoneSmsProvider),
                   countryPriceFloorByCountryId: selectorState ? {} : getCountryPriceFloorById(),
                   skipPreferredActivation: selectorState ? true : preferredActivationExhausted,
                 });

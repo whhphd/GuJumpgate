@@ -4342,6 +4342,18 @@ function isChooseAccountPageReady() {
     && Boolean(findChooseAccountExistingSessionButton({ allowDisabled: true }));
 }
 
+const ACCOUNT_DEACTIVATED_ERROR_PATTERN = /account_deactivated|account\s+(?:deleted|deactivated|disabled)|账户已被(?:删除|停用|禁用)|账号已被(?:删除|停用|禁用)|该账户已被(?:删除|停用|禁用)|该账号已被(?:删除|停用|禁用)|你没有账户|您没有账户|身份验证错误/i;
+
+function getAccountDeactivatedErrorText() {
+  const pageText = getPageTextSnapshot();
+  const titleText = String(document.title || '').trim();
+  const combined = [titleText, pageText, location.href].filter(Boolean).join(' ');
+  if (!ACCOUNT_DEACTIVATED_ERROR_PATTERN.test(combined)) {
+    return '';
+  }
+  return pageText.replace(/\s+/g, ' ').trim().slice(0, 500) || titleText || 'account_deactivated';
+}
+
 function inspectLoginAuthState() {
   const retryState = getLoginTimeoutErrorPageState();
   const verificationTarget = getVerificationCodeTarget();
@@ -4360,11 +4372,14 @@ function inspectLoginAuthState() {
   const phoneVerificationPage = isPhoneVerificationPageReady();
   const consentReady = isStep8Ready();
   const oauthConsentPage = isOAuthConsentPage();
+  const accountDeactivatedErrorText = getAccountDeactivatedErrorText();
   const baseState = {
     state: 'unknown',
     url: location.href,
     path: location.pathname || '',
     displayedEmail: getLoginVerificationDisplayedEmail(),
+    accountDeactivated: Boolean(accountDeactivatedErrorText),
+    accountDeactivatedErrorText,
     retryButton: retryState?.retryButton || null,
     retryEnabled: Boolean(retryState?.retryEnabled),
     titleMatched: Boolean(retryState?.titleMatched),
@@ -4388,6 +4403,13 @@ function inspectLoginAuthState() {
     oauthConsentPage,
     consentReady,
   };
+
+  if (accountDeactivatedErrorText) {
+    return {
+      ...baseState,
+      state: 'account_deactivated_error_page',
+    };
+  }
 
   if (retryState) {
     return {
@@ -4484,6 +4506,8 @@ function serializeLoginAuthState(snapshot) {
     path: snapshot?.path || location.pathname || '',
     displayedEmail: snapshot?.displayedEmail || '',
     verificationErrorText: getVerificationErrorText(),
+    accountDeactivated: Boolean(snapshot?.accountDeactivated),
+    accountDeactivatedErrorText: snapshot?.accountDeactivatedErrorText || '',
     retryEnabled: Boolean(snapshot?.retryEnabled),
     titleMatched: Boolean(snapshot?.titleMatched),
     detailMatched: Boolean(snapshot?.detailMatched),
@@ -4521,6 +4545,8 @@ function getLoginAuthStateLabel(snapshot) {
       return '手机号输入页';
     case 'phone_verification_page':
       return '手机验证码页';
+    case 'account_deactivated_error_page':
+      return '账号停用错误页';
     case 'login_timeout_error_page':
       return '登录超时报错页';
     case 'oauth_consent_page':
@@ -5172,6 +5198,15 @@ async function waitForVerificationSubmitOutcome(step, timeout, options = {}) {
   while (Date.now() - start < resolvedTimeout) {
     throwIfStopped();
 
+    const accountDeactivatedErrorText = getAccountDeactivatedErrorText();
+    if (step === 8 && accountDeactivatedErrorText) {
+      return {
+        accountDeactivated: true,
+        errorText: accountDeactivatedErrorText,
+        url: location.href,
+      };
+    }
+
     const retryFlow = step === 4 ? 'signup' : 'login';
     const retryState = getCurrentAuthRetryPageState(retryFlow);
     if (retryState?.userAlreadyExistsBlocked) {
@@ -5261,6 +5296,15 @@ async function waitForVerificationSubmitOutcome(step, timeout, options = {}) {
         url: location.href,
       };
     }
+  }
+
+  const finalAccountDeactivatedErrorText = step === 8 ? getAccountDeactivatedErrorText() : '';
+  if (finalAccountDeactivatedErrorText) {
+    return {
+      accountDeactivated: true,
+      errorText: finalAccountDeactivatedErrorText,
+      url: location.href,
+    };
   }
 
   if (isVerificationPageStillVisible()) {
@@ -6779,6 +6823,7 @@ function getStep8State() {
     retryTitleMatched: Boolean(retryState?.titleMatched),
     retryDetailMatched: Boolean(retryState?.detailMatched),
     maxCheckAttemptsBlocked: Boolean(retryState?.maxCheckAttemptsBlocked),
+    accountDeactivated: Boolean(getAccountDeactivatedErrorText()),
     buttonFound: Boolean(continueBtn),
     buttonEnabled: isButtonEnabled(continueBtn),
     buttonText: continueBtn ? getActionText(continueBtn) : '',

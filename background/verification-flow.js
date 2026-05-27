@@ -265,6 +265,15 @@
             url: authUrl,
           };
 
+          if (authState === 'account_deactivated_error_page' || result?.accountDeactivated) {
+            return {
+              success: false,
+              reason: 'account_deactivated',
+              accountDeactivated: true,
+              errorText: String(result?.accountDeactivatedErrorText || verificationErrorText || 'OpenAI 账号已被删除或停用。').trim(),
+              url: authUrl,
+            };
+          }
           if (authState === 'verification_page' && verificationErrorText) {
             return {
               success: false,
@@ -1209,6 +1218,13 @@
               timeoutMs: 9000,
               pollIntervalMs: 300,
             });
+            if (fallback.accountDeactivated) {
+              return {
+                accountDeactivated: true,
+                errorText: fallback.errorText || 'OpenAI 账号已被删除或停用。',
+                url: fallback.url || '',
+              };
+            }
             if (fallback.invalidCode) {
               return {
                 invalidCode: true,
@@ -1378,6 +1394,11 @@
           }
           throwIfStopped();
           const submitResult = await submitVerificationCode(step, result.code, options);
+
+          if (submitResult.accountDeactivated) {
+            const detail = String(submitResult.errorText || submitResult.url || 'OpenAI 账号已被删除或停用。').trim();
+            throw new Error(`步骤 ${step}：Plus 卡密对应账号已被删除或停用：${detail}`);
+          }
 
           if (submitResult.invalidCode) {
             rejectedCodes.add(result.code);
