@@ -232,6 +232,80 @@ test('phone auth detects SMS selector outside the add-phone form', async () => {
   }
 });
 
+test('phone auth ignores single WhatsApp resend action on verification page', () => {
+  const whatsappButton = createElementStub({ text: 'Resend code via WhatsApp', role: 'button' });
+  const verificationForm = {
+    querySelector() {
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (/button/.test(selector) || /\[role="button"\]/.test(selector)) {
+        return [whatsappButton];
+      }
+      return [];
+    },
+  };
+  const originalDocument = globalThis.document;
+  const originalLocation = globalThis.location;
+  globalThis.location = { href: 'https://auth.openai.com/phone-verification', pathname: '/phone-verification' };
+  globalThis.document = {
+    title: '',
+    body: { textContent: '' },
+    querySelector(selector) {
+      if (/form\[action\*="\/phone-verification"/i.test(selector)) return verificationForm;
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  };
+
+  const helpers = globalThis.MultiPagePhoneAuth.createPhoneAuthHelpers({
+    fillInput() {},
+    getActionText(element) {
+      return element?.textContent || '';
+    },
+    getPageTextSnapshot() {
+      return '';
+    },
+    getVerificationErrorText() {
+      return '';
+    },
+    humanPause: async () => {},
+    isActionEnabled(element) {
+      return Boolean(element) && !element.disabled;
+    },
+    isAddPhonePageReady() {
+      return false;
+    },
+    isConsentReady() {
+      return false;
+    },
+    isPhoneVerificationPageReady() {
+      return true;
+    },
+    isVisibleElement(element) {
+      return Boolean(element);
+    },
+    performOperationWithDelay: async (_metadata, operation) => operation(),
+    simulateClick(element) {
+      element.click();
+    },
+    sleep: async () => {},
+    throwIfStopped() {},
+    waitForElement: async () => null,
+  });
+
+  try {
+    const metadata = helpers.getPhoneVerificationChannelMetadata('sms');
+    assert.equal(metadata.selectorPresent, false);
+    assert.deepEqual(metadata.availableChannels, []);
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.location = originalLocation;
+  }
+});
+
 test('phone auth continues without selector metadata when no channel selector is present', async () => {
   const harness = createPhoneAuthHarness({ channelOrder: [] });
   try {

@@ -519,7 +519,9 @@
     function getPhoneVerificationChannelMetadata(requestedChannel = 'sms') {
       const normalizedRequestedChannel = getAddPhoneChannelFromText(requestedChannel) || 'sms';
       const options = getPhoneVerificationChannelOptions();
-      return createPhoneChannelMetadata(options, normalizedRequestedChannel, 'phone-verification');
+      const channels = new Set(options.map((option) => option.channel).filter(Boolean));
+      const selectorOptions = channels.has('sms') && channels.has('whatsapp') ? options : [];
+      return createPhoneChannelMetadata(selectorOptions, normalizedRequestedChannel, 'phone-verification');
     }
 
     function getPhoneVerificationCodeInput() {
