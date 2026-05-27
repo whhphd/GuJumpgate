@@ -7,7 +7,7 @@
   const DEFAULT_SERVICE_CODE = 'custom-api';
   const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
   const POOL_SEPARATOR = '----';
-  const AUTO_DISABLE_THRESHOLD = 2;
+  const AUTO_DISABLE_THRESHOLD = 4;
   const COUNTRY_BY_PHONE_PREFIX = Object.freeze([
     { prefix: '63', id: 4, label: 'Philippines' },
     { prefix: '254', id: 8, label: 'Kenya' },
@@ -235,12 +235,12 @@
       : '验证码接口暂未返回有效验证码。';
   }
 
-  function chooseEntry(entries = [], usage = {}) {
+  function chooseEntry(entries = [], usage = {}, random = Math.random) {
     if (!Array.isArray(entries) || entries.length === 0) {
       return null;
     }
     const normalizedUsage = normalizeUsage(usage);
-    return entries
+    const enabledEntries = entries
       .map((entry, index) => {
         const itemUsage = normalizedUsage[entry.key] || {};
         return {
@@ -251,16 +251,18 @@
           enabled: itemUsage.enabled !== false,
         };
       })
-      .filter((entry) => entry.enabled)
-      .sort((left, right) => {
-        if (left.useCount !== right.useCount) {
-          return left.useCount - right.useCount;
-        }
-        if (left.usedAt !== right.usedAt) {
-          return left.usedAt - right.usedAt;
-        }
-        return left.index - right.index;
-      })[0] || null;
+      .filter((entry) => entry.enabled);
+    if (enabledEntries.length === 0) {
+      return null;
+    }
+    const lowestUseCount = Math.min(...enabledEntries.map((entry) => entry.useCount));
+    const candidates = enabledEntries.filter((entry) => entry.useCount === lowestUseCount);
+    const randomValue = typeof random === 'function' ? Number(random()) : Math.random();
+    const randomIndex = Math.min(
+      candidates.length - 1,
+      Math.max(0, Math.floor((Number.isFinite(randomValue) ? randomValue : 0) * candidates.length))
+    );
+    return candidates[randomIndex] || candidates[0] || null;
   }
 
   function inferCountryFromPhoneNumber(phoneNumber = '') {
@@ -288,6 +290,7 @@
       getState = async () => ({}),
       setState = async () => {},
       broadcastDataUpdate = null,
+      random = Math.random,
     } = deps;
 
     async function applyRuntimePatch(patch = {}) {
@@ -385,7 +388,7 @@
     async function requestActivation(state = {}, _options = {}) {
       const entries = parseEntries(state?.[POOL_TEXT_KEY] || '');
       const usage = normalizeUsage(state?.[POOL_USAGE_KEY] || {});
-      const selectedEntry = chooseEntry(entries, usage);
+      const selectedEntry = chooseEntry(entries, usage, random);
       if (!selectedEntry) {
         throw new Error(`${PROVIDER_LABEL}号池暂无可用号码，请先导入号码或启用可用号码。`);
       }
@@ -428,7 +431,6 @@
       if (!entry?.key) {
         return '';
       }
-      await markEntryFailure(entry, '取消接码订单', { forceDisable: false });
       await applyRuntimePatch({ [CURRENT_ENTRY_KEY]: null });
       return 'CANCELLED';
     }

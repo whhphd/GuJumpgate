@@ -6407,9 +6407,8 @@
       if (!normalizedActivation) {
         throw new Error('缺少手机号接码订单。');
       }
-      const providerLabel = normalizedActivation.provider === PHONE_SMS_PROVIDER_5SIM
-        ? '5sim'
-        : (normalizedActivation.provider === PHONE_SMS_PROVIDER_NEXSMS ? 'NexSMS' : 'HeroSMS');
+      const providerLabel = getPhoneSmsProviderLabel(normalizedActivation.provider);
+      const isChatGptApiActivation = normalizedActivation.provider === PHONE_SMS_PROVIDER_CHATGPT_API;
       const usePageResend = normalizedActivation.provider !== PHONE_SMS_PROVIDER_5SIM;
 
       const waitSeconds = normalizePhoneCodeWaitSeconds(state?.phoneCodeWaitSeconds);
@@ -6540,6 +6539,19 @@
               };
             }
             throw error;
+          }
+
+          if (isChatGptApiActivation) {
+            await addLog(
+              `步骤 9：${providerLabel} 号码 ${normalizedActivation.phoneNumber} 达到轮询上限仍未收到短信，将保留该号码供后续重试并直接更换号码。`,
+              'warn'
+            );
+            await clearPhoneRuntimeCountdown();
+            return {
+              code: '',
+              replaceNumber: true,
+              reason: 'chatgpt_api_sms_timeout',
+            };
           }
 
           if (windowIndex < timeoutWindows) {
@@ -6736,6 +6748,16 @@
               if (isPhoneActivationOrderMissingError(error, normalizedActivation.provider)) {
                 throw new Error(`步骤 ${visibleStep}：当前手机号激活已失效，请重新执行前置步骤获取新短信。${error.message || error}`);
               }
+              throw error;
+            }
+
+            if (normalizedActivation.provider === PHONE_SMS_PROVIDER_CHATGPT_API) {
+              await addLog(
+                `步骤 ${visibleStep}：${providerLabel} 号码 ${normalizedActivation.phoneNumber} 达到轮询上限仍未收到短信，将直接结束当前等待，不请求重发。`,
+                'warn',
+                { step: visibleStep, stepKey }
+              );
+              await clearPhoneRuntimeCountdown();
               throw error;
             }
 
@@ -8023,7 +8045,15 @@
           }
 
           if (shouldCancelActivation && activation) {
-            await cancelPhoneActivation(state, activation);
+            if (
+              replaceReason === 'resend_phone_banned'
+              || replaceReason === 'phone_max_usage_exceeded'
+              || replaceReason === 'phone_number_used'
+            ) {
+              await banPhoneActivation(state, activation);
+            } else {
+              await cancelPhoneActivation(state, activation);
+            }
           }
           if (isFreeAutoReuseActivation(activation)) {
             await retireFreeReusableActivation(
