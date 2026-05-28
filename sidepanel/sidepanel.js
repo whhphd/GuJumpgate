@@ -343,6 +343,30 @@ const inputCloudMailAdminEmail = document.getElementById('input-cloud-mail-admin
 const inputCloudMailAdminPassword = document.getElementById('input-cloud-mail-admin-password');
 const inputCloudMailReceiveMailbox = document.getElementById('input-cloud-mail-receive-mailbox');
 const inputCloudMailDomain = document.getElementById('input-cloud-mail-domain');
+const freemailSection = document.getElementById('freemail-section');
+const btnFreemailGithub = document.getElementById('btn-freemail-github');
+const rowFreemailBaseUrl = document.getElementById('row-freemail-base-url');
+const rowFreemailAdminUsername = document.getElementById('row-freemail-admin-username');
+const rowFreemailAdminPassword = document.getElementById('row-freemail-admin-password');
+const rowFreemailDomain = document.getElementById('row-freemail-domain');
+const inputFreemailBaseUrl = document.getElementById('input-freemail-base-url');
+const inputFreemailAdminUsername = document.getElementById('input-freemail-admin-username');
+const inputFreemailAdminPassword = document.getElementById('input-freemail-admin-password');
+const inputFreemailDomain = document.getElementById('input-freemail-domain');
+const outlookEmailPlusSection = document.getElementById('outlook-email-plus-section');
+const btnOutlookEmailPlusGithub = document.getElementById('btn-outlook-email-plus-github');
+const rowOutlookEmailPlusBaseUrl = document.getElementById('row-outlook-email-plus-base-url');
+const rowOutlookEmailPlusApiKey = document.getElementById('row-outlook-email-plus-api-key');
+const rowOutlookEmailPlusProvider = document.getElementById('row-outlook-email-plus-provider');
+const rowOutlookEmailPlusProjectKey = document.getElementById('row-outlook-email-plus-project-key');
+const rowOutlookEmailPlusCallerIdPrefix = document.getElementById('row-outlook-email-plus-caller-id-prefix');
+const rowOutlookEmailPlusAliasMax = document.getElementById('row-outlook-email-plus-alias-max');
+const inputOutlookEmailPlusBaseUrl = document.getElementById('input-outlook-email-plus-base-url');
+const inputOutlookEmailPlusApiKey = document.getElementById('input-outlook-email-plus-api-key');
+const inputOutlookEmailPlusProvider = document.getElementById('input-outlook-email-plus-provider');
+const inputOutlookEmailPlusProjectKey = document.getElementById('input-outlook-email-plus-project-key');
+const inputOutlookEmailPlusCallerIdPrefix = document.getElementById('input-outlook-email-plus-caller-id-prefix');
+const inputOutlookEmailPlusAliasMaxPerMailbox = document.getElementById('input-outlook-email-plus-alias-max-per-mailbox');
 const hotmailSection = document.getElementById('hotmail-section');
 const mail2925Section = document.getElementById('mail2925-section');
 const luckmailSection = document.getElementById('luckmail-section');
@@ -360,6 +384,10 @@ const rowIcloudTargetMailboxType = document.getElementById('row-icloud-target-ma
 const selectIcloudTargetMailboxType = document.getElementById('select-icloud-target-mailbox-type');
 const rowIcloudForwardMailProvider = document.getElementById('row-icloud-forward-mail-provider');
 const selectIcloudForwardMailProvider = document.getElementById('select-icloud-forward-mail-provider');
+const rowIcloudApiBaseUrl = document.getElementById('row-icloud-api-base-url');
+const rowIcloudApiAdminKey = document.getElementById('row-icloud-api-admin-key');
+const inputIcloudApiBaseUrl = document.getElementById('input-icloud-api-base-url');
+const inputIcloudApiAdminKey = document.getElementById('input-icloud-api-admin-key');
 const selectIcloudFetchMode = document.getElementById('select-icloud-fetch-mode');
 const checkboxAutoDeleteIcloud = document.getElementById('checkbox-auto-delete-icloud');
 const inputIcloudSearch = document.getElementById('input-icloud-search');
@@ -505,10 +533,14 @@ const rowHeroSmsPreferredActivation = document.getElementById('row-hero-sms-pref
 const rowPhoneCodeSettingsGroup = document.getElementById('row-phone-code-settings-group');
 const rowPhoneVerificationResendCount = document.getElementById('row-phone-verification-resend-count');
 const rowPhoneReplacementLimit = document.getElementById('row-phone-replacement-limit');
+const rowWhatsappPageRestartEnabled = document.getElementById('row-whatsapp-page-restart-enabled');
+const rowWhatsappPageRestartMaxAttempts = document.getElementById('row-whatsapp-page-restart-max-attempts');
 const rowPhoneCodeWaitSeconds = document.getElementById('row-phone-code-wait-seconds');
 const rowPhoneCodeTimeoutWindows = document.getElementById('row-phone-code-timeout-windows');
 const rowPhoneCodePollIntervalSeconds = document.getElementById('row-phone-code-poll-interval-seconds');
 const rowPhoneCodePollMaxRounds = document.getElementById('row-phone-code-poll-max-rounds');
+const rowPhoneActivationRetryRounds = document.getElementById('row-phone-activation-retry-rounds');
+const rowPhoneAutoReleaseOnStopEnabled = document.getElementById('row-phone-auto-release-on-stop-enabled');
 const rowFreePhoneReuseEnabled = document.getElementById('row-free-phone-reuse-enabled');
 const rowFreePhoneReuseAutoEnabled = document.getElementById('row-free-phone-reuse-auto-enabled');
 const rowFreeReusablePhone = document.getElementById('row-free-reusable-phone');
@@ -525,10 +557,14 @@ const inputHeroSmsMinPrice = document.getElementById('input-hero-sms-min-price')
 const inputHeroSmsMaxPrice = document.getElementById('input-hero-sms-max-price');
 const inputHeroSmsPreferredPrice = document.getElementById('input-hero-sms-preferred-price');
 const inputPhoneReplacementLimit = document.getElementById('input-phone-replacement-limit');
+const inputWhatsappPageRestartEnabled = document.getElementById('input-whatsapp-page-restart-enabled');
+const inputWhatsappPageRestartMaxAttempts = document.getElementById('input-whatsapp-page-restart-max-attempts');
 const inputPhoneCodeWaitSeconds = document.getElementById('input-phone-code-wait-seconds');
 const inputPhoneCodeTimeoutWindows = document.getElementById('input-phone-code-timeout-windows');
 const inputPhoneCodePollIntervalSeconds = document.getElementById('input-phone-code-poll-interval-seconds');
 const inputPhoneCodePollMaxRounds = document.getElementById('input-phone-code-poll-max-rounds');
+const inputPhoneActivationRetryRounds = document.getElementById('input-phone-activation-retry-rounds');
+const inputPhoneAutoReleaseOnStopEnabled = document.getElementById('input-phone-auto-release-on-stop-enabled');
 const inputHeroSmsReuseEnabled = document.getElementById('input-hero-sms-reuse-enabled');
 const inputFreePhoneReuseEnabled = document.getElementById('input-free-phone-reuse-enabled');
 const inputFreePhoneReuseAutoEnabled = document.getElementById('input-free-phone-reuse-auto-enabled');
@@ -621,7 +657,11 @@ const SIGNUP_METHOD_PHONE = 'phone';
 const DEFAULT_SIGNUP_METHOD = SIGNUP_METHOD_EMAIL;
 const DEFAULT_ACTIVE_FLOW_ID = 'openai';
 const DEFAULT_PHONE_SIGNUP_RELOGIN_AFTER_BIND_EMAIL_ENABLED = false;
+const DEFAULT_PHONE_AUTO_RELEASE_ON_STOP_ENABLED = true;
 const PHONE_SIGNUP_REUSE_LOCK_TITLE = '手机号注册流程不使用号码复用，切回邮箱注册后会恢复原设置';
+const SMSBOWER_REUSE_LOCK_TITLE = 'SMSBower 当前不使用普通号码复用';
+const PROVIDER_REUSE_LOCK_TITLE = '当前接码服务商不支持号码复用';
+const PROVIDER_FREE_REUSE_LOCK_TITLE = '当前接码服务商不支持白嫖复用';
 let latestState = null;
 let currentPlusModeEnabled = false;
 let currentPlusPaymentMethod = DEFAULT_PLUS_PAYMENT_METHOD;
@@ -679,8 +719,11 @@ const VERIFICATION_RESEND_COUNT_MIN = 0;
 const VERIFICATION_RESEND_COUNT_MAX = 20;
 const DEFAULT_VERIFICATION_RESEND_COUNT = 0;
 const PHONE_REPLACEMENT_LIMIT_MIN = 1;
-const PHONE_REPLACEMENT_LIMIT_MAX = 20;
+const PHONE_REPLACEMENT_LIMIT_MAX = 100;
 const DEFAULT_PHONE_VERIFICATION_REPLACEMENT_LIMIT = 3;
+const WHATSAPP_PHONE_VERIFICATION_RESTART_LIMIT_MIN = 1;
+const WHATSAPP_PHONE_VERIFICATION_RESTART_LIMIT_MAX = 20;
+const DEFAULT_WHATSAPP_PHONE_VERIFICATION_RESTART_MAX_ATTEMPTS = 3;
 const PHONE_CODE_WAIT_SECONDS_MIN = 15;
 const PHONE_CODE_WAIT_SECONDS_MAX = 300;
 const DEFAULT_PHONE_CODE_WAIT_SECONDS = 120;
@@ -693,6 +736,9 @@ const DEFAULT_PHONE_CODE_POLL_INTERVAL_SECONDS = 5;
 const PHONE_CODE_POLL_MAX_ROUNDS_MIN = 1;
 const PHONE_CODE_POLL_MAX_ROUNDS_MAX = 120;
 const DEFAULT_PHONE_CODE_POLL_MAX_ROUNDS = 4;
+const PHONE_ACTIVATION_RETRY_ROUNDS_MIN = 1;
+const PHONE_ACTIVATION_RETRY_ROUNDS_MAX = 10;
+const DEFAULT_PHONE_ACTIVATION_RETRY_ROUNDS = 3;
 const PHONE_SMS_PROVIDER_HERO = 'hero-sms';
 const PHONE_SMS_PROVIDER_FIVE_SIM = '5sim';
 const PHONE_SMS_PROVIDER_HERO_SMS = PHONE_SMS_PROVIDER_HERO;
@@ -719,8 +765,8 @@ const DEFAULT_FIVE_SIM_OPERATOR = 'any';
 const DEFAULT_FIVE_SIM_PRODUCT = 'openai';
 const DEFAULT_NEX_SMS_COUNTRY_ORDER = Object.freeze([1]);
 const DEFAULT_NEX_SMS_SERVICE_CODE = 'ot';
-const HERO_SMS_COUNTRY_SELECTION_MAX = 3;
-const DEFAULT_HERO_SMS_REUSE_ENABLED = true;
+const HERO_SMS_COUNTRY_SELECTION_MAX = 10;
+const DEFAULT_HERO_SMS_REUSE_ENABLED = false;
 const HERO_SMS_ACQUIRE_PRIORITY_COUNTRY = 'country';
 const HERO_SMS_ACQUIRE_PRIORITY_PRICE = 'price';
 const HERO_SMS_ACQUIRE_PRIORITY_PRICE_HIGH = 'price_high';
@@ -744,6 +790,10 @@ const HERO_SMS_SUPPORTED_COUNTRY_ITEMS = Object.freeze([
 ]);
 const HERO_SMS_SUPPORTED_COUNTRY_ID_SET = new Set(HERO_SMS_SUPPORTED_COUNTRY_ITEMS.map((item) => String(item.id)));
 const HERO_SMS_FALLBACK_COUNTRY_ITEMS = HERO_SMS_SUPPORTED_COUNTRY_ITEMS;
+const SMSBOWER_FALLBACK_COUNTRY_ITEMS = Object.freeze([
+  ...HERO_SMS_SUPPORTED_COUNTRY_ITEMS,
+  { id: 53, chn: '沙特阿拉伯', eng: 'Saudi Arabia', searchText: 'saudi arabia 沙特阿拉伯 SA +966 53' },
+]);
 const FIVE_SIM_COUNTRY_CN_BY_ID = Object.freeze({
   afghanistan: '阿富汗',
   albania: '阿尔巴尼亚',
@@ -1142,12 +1192,16 @@ const AUTO_RUN_FALLBACK_RISK_WARNING_MIN_RUNS = 6;
 const HOTMAIL_SERVICE_MODE_REMOTE = 'remote';
 const HOTMAIL_SERVICE_MODE_LOCAL = 'local';
 const ICLOUD_PROVIDER = 'icloud';
+const ICLOUD_API_PROVIDER = 'icloud-api';
 const GMAIL_PROVIDER = 'gmail';
 const GMAIL_ALIAS_GENERATOR = 'gmail-alias';
 const HOTMAIL_PROVIDER = 'hotmail-api';
 const LUCKMAIL_PROVIDER = 'luckmail-api';
 const CLOUDFLARE_TEMP_EMAIL_PROVIDER = 'cloudflare-temp-email';
 const CLOUD_MAIL_PROVIDER = 'cloudmail';
+const FREEMAIL_PROVIDER = 'freemail';
+const OUTLOOK_EMAIL_PLUS_PROVIDER = 'outlook-email-plus';
+const OUTLOOK_EMAIL_PLUS_GENERATOR = 'outlook-email-plus';
 const CUSTOM_EMAIL_POOL_GENERATOR = 'custom-pool';
 const DEFAULT_LUCKMAIL_BASE_URL = 'https://mails.luckyous.com';
 const DEFAULT_LUCKMAIL_EMAIL_TYPE = 'ms_graph';
@@ -1701,6 +1755,19 @@ const normalizeIcloudForwardMailProvider = window.MailProviderUtils?.normalizeIc
       ? normalized
       : (options[0]?.value || 'qq');
   });
+const normalizeIcloudApiBaseUrlValue = window.MailProviderUtils?.normalizeIcloudApiBaseUrl
+  || ((value = '') => String(value || '').trim().replace(/\/+$/g, ''));
+const parseHiddenEmailCredential = window.MailProviderUtils?.parseHiddenEmailCredential
+  || ((value = '') => {
+    const raw = String(value || '').trim();
+    const separatorIndex = raw.indexOf('----');
+    const emailSource = separatorIndex >= 0 ? raw.slice(0, separatorIndex) : raw;
+    const credential = separatorIndex >= 0 ? raw : '';
+    return {
+      email: emailSource.trim().toLowerCase(),
+      credential: credential.trim(),
+    };
+  });
 const ICLOUD_FORWARD_MAIL_PROVIDER_LABELS = Object.fromEntries(
   getIcloudForwardMailProviderOptions().map((option) => [option.value, option.label])
 );
@@ -1711,6 +1778,10 @@ btnAutoCancelSchedule?.remove();
 const MAIL_PROVIDER_LOGIN_CONFIGS = {
   [ICLOUD_PROVIDER]: {
     label: 'iCloud 邮箱',
+    buttonLabel: '登录',
+  },
+  [ICLOUD_API_PROVIDER]: {
+    label: 'iCloud API（QQ 转发）',
     buttonLabel: '登录',
   },
   [GMAIL_PROVIDER]: {
@@ -1741,6 +1812,16 @@ const MAIL_PROVIDER_LOGIN_CONFIGS = {
   'cloudflare-temp-email': {
     label: 'Cloudflare Temp Email 部署',
     url: 'https://github.com/QLHazyCoder/cloudflare_temp_email',
+    buttonLabel: '部署',
+  },
+  freemail: {
+    label: 'freemail 部署',
+    url: 'https://github.com/idinging/freemail',
+    buttonLabel: '部署',
+  },
+  [OUTLOOK_EMAIL_PLUS_PROVIDER]: {
+    label: 'Outlook Email Plus 部署',
+    url: 'https://github.com/ZeroPointSix/outlookEmailPlus',
     buttonLabel: '部署',
   },
   '2925': {
@@ -2414,10 +2495,31 @@ function setCurrentSessionExportButtonsDisabled(disabled) {
   });
 }
 
+async function confirmCurrentSessionExportWarning(format) {
+  const normalizedFormat = String(format || '').trim().toLowerCase() === 'sub2'
+    ? 'sub2'
+    : 'cpa';
+  const label = normalizedFormat === 'sub2' ? 'SUB2 JSON' : 'CPA JSON';
+  return openConfirmModal({
+    title: '导出提醒',
+    message: '目前SESSION导出的JSON无法直接使用',
+    alert: {
+      text: `确认后仍会继续导出 ${label} 文件。`,
+      tone: 'danger',
+    },
+    confirmLabel: '继续导出',
+    confirmVariant: 'btn-danger',
+  });
+}
+
 async function exportCurrentSessionJson(format) {
   const normalizedFormat = String(format || '').trim().toLowerCase() === 'sub2'
     ? 'sub2'
     : 'cpa';
+  const confirmed = await confirmCurrentSessionExportWarning(normalizedFormat);
+  if (!confirmed) {
+    return;
+  }
   setCurrentSessionExportButtonsDisabled(true);
   try {
     const response = await chrome.runtime.sendMessage({
@@ -2600,18 +2702,7 @@ async function persistOperationDelayToggle() {
 }
 
 function normalizePlusPaymentMethod(value = '') {
-  const rootScope = typeof window !== 'undefined' ? window : globalThis;
-  if (rootScope.GoPayUtils?.normalizePlusPaymentMethod) {
-    return rootScope.GoPayUtils.normalizePlusPaymentMethod(value);
-  }
-  const gopayValue = typeof PLUS_PAYMENT_METHOD_GOPAY !== 'undefined' ? PLUS_PAYMENT_METHOD_GOPAY : 'gopay';
-  const gpcValue = typeof PLUS_PAYMENT_METHOD_GPC_HELPER !== 'undefined' ? PLUS_PAYMENT_METHOD_GPC_HELPER : 'gpc-helper';
-  const paypalValue = typeof PLUS_PAYMENT_METHOD_PAYPAL !== 'undefined' ? PLUS_PAYMENT_METHOD_PAYPAL : 'paypal';
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === gpcValue) {
-    return gpcValue;
-  }
-  return normalized === gopayValue ? gopayValue : paypalValue;
+  return typeof PLUS_PAYMENT_METHOD_PAYPAL !== 'undefined' ? PLUS_PAYMENT_METHOD_PAYPAL : 'paypal';
 }
 
 function getSelectedPlusPaymentMethod(state = latestState) {
@@ -3153,13 +3244,68 @@ function normalizeHotmailAliasEnabledValue(value) {
 
 function normalizeSupportedMailProvider(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === ICLOUD_PROVIDER || normalized === ICLOUD_API_PROVIDER) {
+    return normalized;
+  }
   if (normalized === CLOUDFLARE_TEMP_EMAIL_PROVIDER) {
     return CLOUDFLARE_TEMP_EMAIL_PROVIDER;
   }
   if (normalized === CLOUD_MAIL_PROVIDER) {
     return CLOUD_MAIL_PROVIDER;
   }
+  if (normalized === FREEMAIL_PROVIDER) {
+    return FREEMAIL_PROVIDER;
+  }
+  if (normalized === OUTLOOK_EMAIL_PLUS_PROVIDER) {
+    return OUTLOOK_EMAIL_PLUS_PROVIDER;
+  }
   return HOTMAIL_PROVIDER;
+}
+
+function normalizeOutlookEmailPlusBaseUrlValue(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const candidate = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(candidate);
+    parsed.hash = '';
+    parsed.search = '';
+    let pathname = String(parsed.pathname || '').replace(/\/+/g, '/');
+    pathname = pathname.replace(/\/api\/external(?:\/.*)?$/i, '');
+    pathname = pathname === '/' ? '' : pathname.replace(/\/+$/g, '');
+    return `${parsed.origin}${pathname}`;
+  } catch {
+    return '';
+  }
+}
+
+function normalizeOutlookEmailPlusProviderValue(value = '') {
+  return String(value || '').trim().toLowerCase() || 'outlook';
+}
+
+function normalizeOutlookEmailPlusProjectKeyValue(value = '') {
+  return String(value || '').trim().toLowerCase() || 'openai';
+}
+
+function normalizeOutlookEmailPlusCallerIdPrefixValue(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-._]+|[-._]+$/g, '') || 'gujumpgate';
+}
+
+function normalizeOutlookEmailPlusAliasMaxPerMailbox(value) {
+  const rawValue = String(value ?? '').trim();
+  if (!rawValue) {
+    return 5;
+  }
+  const numeric = Number(rawValue);
+  if (!Number.isFinite(numeric)) {
+    return 5;
+  }
+  return Math.min(50, Math.max(1, Math.floor(numeric)));
 }
 
 function normalizeVerificationResendCount(value, fallback) {
@@ -3190,7 +3336,7 @@ function normalizeCustomEmailPoolEntries(value = '') {
     : String(value || '').split(/[\r\n,，;；]+/);
 
   return source
-    .map((item) => String(item || '').trim().toLowerCase())
+    .map((item) => parseHiddenEmailCredential(item).email)
     .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item));
 }
 
@@ -3214,7 +3360,8 @@ function normalizeCustomEmailPoolEntryObjects(value = []) {
     const asObject = rawEntry && typeof rawEntry === 'object'
       ? rawEntry
       : { email: rawEntry };
-    const email = normalizeCustomEmailPoolEntryEmail(asObject.email || '');
+    const parsedCredential = parseHiddenEmailCredential(asObject.credential || asObject.email || '');
+    const email = normalizeCustomEmailPoolEntryEmail(parsedCredential.email || '');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       continue;
     }
@@ -3225,6 +3372,7 @@ function normalizeCustomEmailPoolEntryObjects(value = []) {
     entries.push({
       id: String(asObject.id || createCustomEmailPoolEntryId()),
       email,
+      credential: parsedCredential.credential || String(asObject.credential || '').trim(),
       enabled: asObject.enabled !== undefined ? Boolean(asObject.enabled) : true,
       used: Boolean(asObject.used),
       note: String(asObject.note || '').trim(),
@@ -3534,6 +3682,14 @@ function normalizeCloudMailDomainValue(value = '') {
   return normalizeCloudflareDomainValue(value);
 }
 
+function normalizeFreemailBaseUrlValue(value = '') {
+  return normalizeCloudflareTempEmailBaseUrlValue(value);
+}
+
+function normalizeFreemailDomainValue(value = '') {
+  return normalizeCloudflareDomainValue(value);
+}
+
 function getCloudflareDomainsFromState() {
   const domains = normalizeCloudflareDomains(latestState?.cloudflareDomains || []);
   const activeDomain = normalizeCloudflareDomainValue(latestState?.cloudflareDomain || '');
@@ -3624,6 +3780,82 @@ function applyCloudMailSettingsState(state = {}) {
   }
 }
 
+function applyFreemailSettingsState(state = {}) {
+  if (inputFreemailBaseUrl) {
+    inputFreemailBaseUrl.value = state?.freemailBaseUrl || '';
+  }
+  if (inputFreemailAdminUsername) {
+    inputFreemailAdminUsername.value = state?.freemailAdminUsername || '';
+  }
+  if (inputFreemailAdminPassword) {
+    inputFreemailAdminPassword.value = state?.freemailAdminPassword || '';
+  }
+  if (inputFreemailDomain) {
+    inputFreemailDomain.value = state?.freemailDomain || '';
+  }
+}
+
+function validateFreemailConfigForGeneration(options = {}) {
+  const { focusOnError = false } = options;
+  if (getSelectedEmailGenerator() !== FREEMAIL_PROVIDER) {
+    return { valid: true };
+  }
+
+  const baseUrl = normalizeFreemailBaseUrlValue(inputFreemailBaseUrl?.value || '');
+  if (!baseUrl) {
+    if (focusOnError) {
+      inputFreemailBaseUrl?.focus();
+      inputFreemailBaseUrl?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    return {
+      valid: false,
+      message: '请先填写 freemail API 地址，例如 https://your-worker-domain。',
+    };
+  }
+
+  const adminUsername = String(inputFreemailAdminUsername?.value || '').trim();
+  if (!adminUsername) {
+    if (focusOnError) {
+      inputFreemailAdminUsername?.focus();
+      inputFreemailAdminUsername?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    return { valid: false, message: '请先填写 freemail 管理员用户名。' };
+  }
+
+  if (!String(inputFreemailAdminPassword?.value || '')) {
+    if (focusOnError) {
+      inputFreemailAdminPassword?.focus();
+      inputFreemailAdminPassword?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    return { valid: false, message: '请先填写 freemail 管理员密码。' };
+  }
+
+  return { valid: true };
+}
+
+function applyOutlookEmailPlusSettingsState(state = {}) {
+  if (inputOutlookEmailPlusBaseUrl) {
+    inputOutlookEmailPlusBaseUrl.value = state?.outlookEmailPlusBaseUrl || '';
+  }
+  if (inputOutlookEmailPlusApiKey) {
+    inputOutlookEmailPlusApiKey.value = state?.outlookEmailPlusApiKey || '';
+  }
+  if (inputOutlookEmailPlusProvider) {
+    inputOutlookEmailPlusProvider.value = normalizeOutlookEmailPlusProviderValue(state?.outlookEmailPlusProvider);
+  }
+  if (inputOutlookEmailPlusProjectKey) {
+    inputOutlookEmailPlusProjectKey.value = normalizeOutlookEmailPlusProjectKeyValue(state?.outlookEmailPlusProjectKey);
+  }
+  if (inputOutlookEmailPlusCallerIdPrefix) {
+    inputOutlookEmailPlusCallerIdPrefix.value = normalizeOutlookEmailPlusCallerIdPrefixValue(state?.outlookEmailPlusCallerIdPrefix);
+  }
+  if (inputOutlookEmailPlusAliasMaxPerMailbox) {
+    inputOutlookEmailPlusAliasMaxPerMailbox.value = String(
+      normalizeOutlookEmailPlusAliasMaxPerMailbox(state?.outlookEmailPlusAliasMaxPerMailbox)
+    );
+  }
+}
+
 function collectSettingsPayload() {
   const defaultGpcHelperApiUrl = typeof DEFAULT_GPC_HELPER_API_URL !== 'undefined'
     ? DEFAULT_GPC_HELPER_API_URL
@@ -3645,6 +3877,24 @@ function collectSettingsPayload() {
   const normalizeCloudMailDomainInput = typeof normalizeCloudMailDomainValue === 'function'
     ? normalizeCloudMailDomainValue
     : normalizeCloudflareTempEmailDomainValue;
+  const normalizeFreemailBaseUrlInput = typeof normalizeFreemailBaseUrlValue === 'function'
+    ? normalizeFreemailBaseUrlValue
+    : normalizeCloudflareTempEmailBaseUrlValue;
+  const normalizeFreemailDomainInput = typeof normalizeFreemailDomainValue === 'function'
+    ? normalizeFreemailDomainValue
+    : normalizeCloudflareTempEmailDomainValue;
+  const normalizeOutlookEmailPlusBaseUrlInput = typeof normalizeOutlookEmailPlusBaseUrlValue === 'function'
+    ? normalizeOutlookEmailPlusBaseUrlValue
+    : ((value = '') => String(value || '').trim().replace(/\/+$/g, ''));
+  const normalizeOutlookEmailPlusProviderInput = typeof normalizeOutlookEmailPlusProviderValue === 'function'
+    ? normalizeOutlookEmailPlusProviderValue
+    : ((value = '') => String(value || '').trim().toLowerCase() || 'outlook');
+  const normalizeOutlookEmailPlusProjectKeyInput = typeof normalizeOutlookEmailPlusProjectKeyValue === 'function'
+    ? normalizeOutlookEmailPlusProjectKeyValue
+    : ((value = '') => String(value || '').trim().toLowerCase() || 'openai');
+  const normalizeOutlookEmailPlusCallerIdPrefixInput = typeof normalizeOutlookEmailPlusCallerIdPrefixValue === 'function'
+    ? normalizeOutlookEmailPlusCallerIdPrefixValue
+    : ((value = '') => String(value || '').trim().toLowerCase() || 'gujumpgate');
   const contributionModeEnabled = Boolean(latestState?.contributionMode);
   const icloudFetchModeRawValue = typeof selectIcloudFetchMode !== 'undefined'
     ? String(selectIcloudFetchMode?.value || '')
@@ -3964,6 +4214,9 @@ function collectSettingsPayload() {
   const defaultPhoneCodePollMaxRounds = typeof DEFAULT_PHONE_CODE_POLL_MAX_ROUNDS !== 'undefined'
     ? DEFAULT_PHONE_CODE_POLL_MAX_ROUNDS
     : 12;
+  const defaultPhoneActivationRetryRounds = typeof DEFAULT_PHONE_ACTIVATION_RETRY_ROUNDS !== 'undefined'
+    ? DEFAULT_PHONE_ACTIVATION_RETRY_ROUNDS
+    : 3;
   const selectedSignupMethod = typeof getSelectedSignupMethod === 'function'
     ? getSelectedSignupMethod()
     : (
@@ -3974,7 +4227,11 @@ function collectSettingsPayload() {
   const phoneSignupReuseLocked = typeof isPhoneSignupReuseLocked === 'function'
     ? isPhoneSignupReuseLocked(latestState, { signupMethod: selectedSignupMethod })
     : selectedSignupMethod === 'phone';
-  const phoneSmsReuseEnabledValue = phoneSignupReuseLocked
+  const providerActivationReuseSupported = supportsPhoneActivationReuseProvider(phoneSmsProviderValue);
+  const providerFreeReuseSupported = supportsFreePhoneReuseProvider(phoneSmsProviderValue);
+  const phoneSmsReuseEnabledValue = !providerActivationReuseSupported
+    ? getStoredPhoneSmsReuseEnabled(latestState)
+    : phoneSignupReuseLocked
     ? getStoredPhoneSmsReuseEnabled(latestState)
     : typeof inputHeroSmsReuseEnabled !== 'undefined' && inputHeroSmsReuseEnabled
     ? normalizeHeroSmsReuseEnabledValue(inputHeroSmsReuseEnabled.checked)
@@ -3983,16 +4240,23 @@ function collectSettingsPayload() {
       latestState?.heroSmsReuseEnabled
     );
   const heroSmsReuseEnabledValue = phoneSmsReuseEnabledValue;
-  const freePhoneReuseEnabledValue = phoneSignupReuseLocked
+  const freePhoneReuseEnabledValue = !providerFreeReuseSupported
+    ? getStoredFreePhoneReuseEnabled(latestState)
+    : phoneSignupReuseLocked
     ? getStoredFreePhoneReuseEnabled(latestState)
     : typeof inputFreePhoneReuseEnabled !== 'undefined' && inputFreePhoneReuseEnabled
     ? Boolean(inputFreePhoneReuseEnabled.checked)
     : Boolean(latestState?.freePhoneReuseEnabled);
-  const freePhoneReuseAutoEnabledValue = phoneSignupReuseLocked
+  const freePhoneReuseAutoEnabledValue = !providerFreeReuseSupported
+    ? getStoredFreePhoneReuseAutoEnabled(latestState)
+    : phoneSignupReuseLocked
     ? getStoredFreePhoneReuseAutoEnabled(latestState)
     : typeof inputFreePhoneReuseAutoEnabled !== 'undefined' && inputFreePhoneReuseAutoEnabled
     ? Boolean(inputFreePhoneReuseAutoEnabled.checked)
     : Boolean(latestState?.freePhoneReuseAutoEnabled);
+  const phoneAutoReleaseOnStopEnabledValue = typeof inputPhoneAutoReleaseOnStopEnabled !== 'undefined' && inputPhoneAutoReleaseOnStopEnabled
+    ? Boolean(inputPhoneAutoReleaseOnStopEnabled.checked)
+    : latestState?.phoneAutoReleaseOnStopEnabled !== false;
   const defaultHeroSmsAcquirePriority = typeof DEFAULT_HERO_SMS_ACQUIRE_PRIORITY !== 'undefined'
     ? DEFAULT_HERO_SMS_ACQUIRE_PRIORITY
     : (typeof HERO_SMS_ACQUIRE_PRIORITY_COUNTRY !== 'undefined' ? HERO_SMS_ACQUIRE_PRIORITY_COUNTRY : 'country');
@@ -4126,6 +4390,12 @@ function collectSettingsPayload() {
       latestState?.phoneVerificationReplacementLimit
     )
     : DEFAULT_PHONE_VERIFICATION_REPLACEMENT_LIMIT;
+  const whatsappPhoneVerificationRestartMaxAttemptsValue = typeof inputWhatsappPageRestartMaxAttempts !== 'undefined' && inputWhatsappPageRestartMaxAttempts
+    ? normalizeWhatsAppPhoneVerificationRestartMaxAttempts(
+      inputWhatsappPageRestartMaxAttempts.value,
+      latestState?.whatsappPhoneVerificationRestartMaxAttempts
+    )
+    : DEFAULT_WHATSAPP_PHONE_VERIFICATION_RESTART_MAX_ATTEMPTS;
   const phoneCodeWaitSecondsValue = typeof inputPhoneCodeWaitSeconds !== 'undefined' && inputPhoneCodeWaitSeconds
     ? normalizePhoneCodeWaitSecondsValue(
       inputPhoneCodeWaitSeconds.value,
@@ -4150,6 +4420,12 @@ function collectSettingsPayload() {
       latestState?.phoneCodePollMaxRounds
     )
     : defaultPhoneCodePollMaxRounds;
+  const heroSmsActivationRetryRoundsValue = typeof inputPhoneActivationRetryRounds !== 'undefined' && inputPhoneActivationRetryRounds
+    ? normalizePhoneActivationRetryRoundsValue(
+      inputPhoneActivationRetryRounds.value,
+      latestState?.heroSmsActivationRetryRounds
+    )
+    : defaultPhoneActivationRetryRounds;
   const selectedPhoneSmsCountry = phoneSmsProviderValue === PHONE_SMS_PROVIDER_FIVE_SIM
     ? ((typeof getSelectedFiveSimCountries === 'function' ? getSelectedFiveSimCountries()[0] : null)
       || { id: DEFAULT_FIVE_SIM_COUNTRY_ID, code: DEFAULT_FIVE_SIM_COUNTRY_ID, label: DEFAULT_FIVE_SIM_COUNTRY_LABEL })
@@ -4519,6 +4795,8 @@ function collectSettingsPayload() {
     icloudHostPreference: selectIcloudHostPreference?.value || 'auto',
     icloudTargetMailboxType: normalizedIcloudTargetMailboxType,
     icloudForwardMailProvider: normalizedIcloudForwardMailProvider,
+    icloudApiBaseUrl: normalizeIcloudApiBaseUrlValue(inputIcloudApiBaseUrl?.value || ''),
+    icloudApiAdminKey: inputIcloudApiAdminKey?.value || '',
     icloudFetchMode: (icloudFetchModeRawValue.trim().toLowerCase() === 'always_new'
       ? 'always_new'
       : 'reuse_existing'),
@@ -4559,6 +4837,16 @@ function collectSettingsPayload() {
     cloudMailAdminPassword: (typeof inputCloudMailAdminPassword !== 'undefined' && inputCloudMailAdminPassword) ? inputCloudMailAdminPassword.value : '',
     cloudMailReceiveMailbox: normalizeCloudMailReceiveMailboxInput((typeof inputCloudMailReceiveMailbox !== 'undefined' && inputCloudMailReceiveMailbox) ? inputCloudMailReceiveMailbox.value : ''),
     cloudMailDomain: normalizeCloudMailDomainInput((typeof inputCloudMailDomain !== 'undefined' && inputCloudMailDomain) ? inputCloudMailDomain.value : ''),
+    freemailBaseUrl: normalizeFreemailBaseUrlInput((typeof inputFreemailBaseUrl !== 'undefined' && inputFreemailBaseUrl) ? inputFreemailBaseUrl.value : ''),
+    freemailAdminUsername: ((typeof inputFreemailAdminUsername !== 'undefined' && inputFreemailAdminUsername) ? inputFreemailAdminUsername.value : '').trim(),
+    freemailAdminPassword: (typeof inputFreemailAdminPassword !== 'undefined' && inputFreemailAdminPassword) ? inputFreemailAdminPassword.value : '',
+    freemailDomain: normalizeFreemailDomainInput((typeof inputFreemailDomain !== 'undefined' && inputFreemailDomain) ? inputFreemailDomain.value : ''),
+    outlookEmailPlusBaseUrl: normalizeOutlookEmailPlusBaseUrlInput((typeof inputOutlookEmailPlusBaseUrl !== 'undefined' && inputOutlookEmailPlusBaseUrl) ? inputOutlookEmailPlusBaseUrl.value : ''),
+    outlookEmailPlusApiKey: (typeof inputOutlookEmailPlusApiKey !== 'undefined' && inputOutlookEmailPlusApiKey) ? inputOutlookEmailPlusApiKey.value : '',
+    outlookEmailPlusProvider: normalizeOutlookEmailPlusProviderInput((typeof inputOutlookEmailPlusProvider !== 'undefined' && inputOutlookEmailPlusProvider) ? inputOutlookEmailPlusProvider.value : ''),
+    outlookEmailPlusProjectKey: normalizeOutlookEmailPlusProjectKeyInput((typeof inputOutlookEmailPlusProjectKey !== 'undefined' && inputOutlookEmailPlusProjectKey) ? inputOutlookEmailPlusProjectKey.value : ''),
+    outlookEmailPlusCallerIdPrefix: normalizeOutlookEmailPlusCallerIdPrefixInput((typeof inputOutlookEmailPlusCallerIdPrefix !== 'undefined' && inputOutlookEmailPlusCallerIdPrefix) ? inputOutlookEmailPlusCallerIdPrefix.value : ''),
+    outlookEmailPlusAliasMaxPerMailbox: normalizeOutlookEmailPlusAliasMaxPerMailbox((typeof inputOutlookEmailPlusAliasMaxPerMailbox !== 'undefined' && inputOutlookEmailPlusAliasMaxPerMailbox) ? inputOutlookEmailPlusAliasMaxPerMailbox.value : 5),
     autoRunSkipFailures: inputAutoSkipFailures.checked,
     autoRunRetryNonFreeTrial: Boolean(inputAutoRunRetryNonFreeTrial?.checked),
     autoRunRetryPaypalCallback: Boolean(inputAutoRunRetryPaypalCallback?.checked),
@@ -4661,6 +4949,11 @@ function collectSettingsPayload() {
     heroSmsReuseEnabled: heroSmsReuseEnabledValue,
     freePhoneReuseEnabled: freePhoneReuseEnabledValue,
     freePhoneReuseAutoEnabled: freePhoneReuseAutoEnabledValue,
+    phoneAutoReleaseOnStopEnabled: phoneAutoReleaseOnStopEnabledValue,
+    whatsappPhoneVerificationRestartEnabled: typeof inputWhatsappPageRestartEnabled !== 'undefined' && inputWhatsappPageRestartEnabled
+      ? Boolean(inputWhatsappPageRestartEnabled.checked)
+      : true,
+    whatsappPhoneVerificationRestartMaxAttempts: whatsappPhoneVerificationRestartMaxAttemptsValue,
     heroSmsAcquirePriority: heroSmsAcquirePriorityValue,
     heroSmsMinPrice: heroSmsMinPriceValue,
     heroSmsMaxPrice: heroSmsMaxPriceValue,
@@ -4683,6 +4976,7 @@ function collectSettingsPayload() {
     phoneCodeTimeoutWindows: phoneCodeTimeoutWindowsValue,
     phoneCodePollIntervalSeconds: phoneCodePollIntervalSecondsValue,
     phoneCodePollMaxRounds: phoneCodePollMaxRoundsValue,
+    heroSmsActivationRetryRounds: heroSmsActivationRetryRoundsValue,
     heroSmsCountryId: heroSmsCountry.id,
     heroSmsCountryLabel: heroSmsCountry.label,
     heroSmsCountryFallback,
@@ -5521,6 +5815,27 @@ function normalizePhoneVerificationReplacementLimit(value, fallback = DEFAULT_PH
   return Math.max(PHONE_REPLACEMENT_LIMIT_MIN, Math.min(PHONE_REPLACEMENT_LIMIT_MAX, parsed));
 }
 
+function normalizeWhatsAppPhoneVerificationRestartMaxAttempts(
+  value,
+  fallback = DEFAULT_WHATSAPP_PHONE_VERIFICATION_RESTART_MAX_ATTEMPTS
+) {
+  const rawValue = String(value ?? '').trim();
+  const parsed = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsed)) {
+    return Math.max(
+      WHATSAPP_PHONE_VERIFICATION_RESTART_LIMIT_MIN,
+      Math.min(
+        WHATSAPP_PHONE_VERIFICATION_RESTART_LIMIT_MAX,
+        Number(fallback) || DEFAULT_WHATSAPP_PHONE_VERIFICATION_RESTART_MAX_ATTEMPTS
+      )
+    );
+  }
+  return Math.max(
+    WHATSAPP_PHONE_VERIFICATION_RESTART_LIMIT_MIN,
+    Math.min(WHATSAPP_PHONE_VERIFICATION_RESTART_LIMIT_MAX, parsed)
+  );
+}
+
 function normalizePhoneCodeWaitSecondsValue(value, fallback = DEFAULT_PHONE_CODE_WAIT_SECONDS) {
   const rawValue = String(value ?? '').trim();
   const parsed = Number.parseInt(rawValue, 10);
@@ -5567,6 +5882,18 @@ function normalizePhoneCodePollMaxRoundsValue(value, fallback = DEFAULT_PHONE_CO
     );
   }
   return Math.max(PHONE_CODE_POLL_MAX_ROUNDS_MIN, Math.min(PHONE_CODE_POLL_MAX_ROUNDS_MAX, parsed));
+}
+
+function normalizePhoneActivationRetryRoundsValue(value, fallback = DEFAULT_PHONE_ACTIVATION_RETRY_ROUNDS) {
+  const rawValue = String(value ?? '').trim();
+  const parsed = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsed)) {
+    return Math.max(
+      PHONE_ACTIVATION_RETRY_ROUNDS_MIN,
+      Math.min(PHONE_ACTIVATION_RETRY_ROUNDS_MAX, Number(fallback) || DEFAULT_PHONE_ACTIVATION_RETRY_ROUNDS)
+    );
+  }
+  return Math.max(PHONE_ACTIVATION_RETRY_ROUNDS_MIN, Math.min(PHONE_ACTIVATION_RETRY_ROUNDS_MAX, parsed));
 }
 
 function normalizeHeroSmsReuseEnabledValue(value, fallbackValue = undefined) {
@@ -5718,6 +6045,39 @@ function buildHeroSmsCountryDisplayLabel(country = {}) {
     return `${chinese} (${english})`;
   }
   return chinese || english;
+}
+
+function collectGenericPhoneSmsPriceEntries(payload, entries = []) {
+  if (Array.isArray(payload)) {
+    payload.forEach((entry) => collectGenericPhoneSmsPriceEntries(entry, entries));
+    return entries;
+  }
+  if (!payload || typeof payload !== 'object') {
+    return entries;
+  }
+
+  const directPrice = Number(payload.price ?? payload.cost);
+  const directCount = Number(payload.count ?? payload.qty);
+  if (Number.isFinite(directPrice) && directPrice > 0) {
+    entries.push({
+      cost: Math.round(directPrice * 10000) / 10000,
+      count: Number.isFinite(directCount) ? Math.max(0, directCount) : 0,
+      inStock: !Number.isFinite(directCount) || directCount > 0,
+    });
+  }
+  Object.entries(payload).forEach(([key, value]) => {
+    const keyedPrice = Number(key);
+    if (Number.isFinite(keyedPrice) && keyedPrice > 0) {
+      const count = Number(value?.count ?? value);
+      entries.push({
+        cost: Math.round(keyedPrice * 10000) / 10000,
+        count: Number.isFinite(count) ? Math.max(0, count) : 0,
+        inStock: !Number.isFinite(count) || count > 0,
+      });
+    }
+    collectGenericPhoneSmsPriceEntries(value, entries);
+  });
+  return entries;
 }
 
 function normalizeHeroSmsFetchErrorMessage(error) {
@@ -6791,6 +7151,39 @@ function restorePhoneSmsCountrySelectionFromState(state = {}, provider = getSele
   updateHeroSmsPlatformDisplay();
 }
 
+function rehydratePhoneVerificationSelectionsFromState(state = latestState) {
+  const resolvedState = state && typeof state === 'object' ? state : latestState;
+  const normalizedProvider = normalizePhoneSmsProviderValue(
+    resolvedState?.phoneSmsProvider || getSelectedPhoneSmsProvider()
+  );
+  if (selectPhoneSmsProvider) {
+    selectPhoneSmsProvider.value = normalizedProvider;
+  }
+  const restoredProviderOrder = typeof applyPhoneSmsProviderOrderSelection === 'function'
+    ? applyPhoneSmsProviderOrderSelection(resolvedState?.phoneSmsProviderOrder || [], {
+      ensureDefault: false,
+      syncProvider: false,
+    })
+    : [];
+  updatePhoneSmsProviderOrderSummary(restoredProviderOrder);
+
+  if (normalizedProvider === PHONE_SMS_PROVIDER_FIVE_SIM) {
+    applyFiveSimCountrySelection(
+      Array.isArray(resolvedState?.fiveSimCountryOrder) ? resolvedState.fiveSimCountryOrder : [],
+      { ensureDefault: false }
+    );
+  } else if (normalizedProvider === PHONE_SMS_PROVIDER_NEXSMS) {
+    applyNexSmsCountrySelection(
+      Array.isArray(resolvedState?.nexSmsCountryOrder) ? resolvedState.nexSmsCountryOrder : [],
+      { ensureDefault: false }
+    );
+  } else {
+    restorePhoneSmsCountrySelectionFromState(resolvedState, normalizedProvider);
+  }
+
+  updateHeroSmsPlatformDisplay();
+}
+
 function getPhoneSmsProviderLabel(provider = '') {
   const normalized = normalizePhoneSmsProviderValue(provider);
   if (normalized === PHONE_SMS_PROVIDER_FIVE_SIM) {
@@ -6815,6 +7208,27 @@ function getPhoneSmsProviderLabel(provider = '') {
     return 'ChatGPT API 接码';
   }
   return 'HeroSMS';
+}
+
+function supportsPhoneActivationReuseProvider(provider = '') {
+  const normalized = normalizePhoneSmsProviderValue(provider);
+  if (typeof window !== 'undefined' && window.PhoneSmsProviderRegistry?.supportsActivationReuse) {
+    return Boolean(window.PhoneSmsProviderRegistry.supportsActivationReuse(normalized));
+  }
+  return normalized === PHONE_SMS_PROVIDER_HERO
+    || normalized === PHONE_SMS_PROVIDER_FIVE_SIM
+    || normalized === PHONE_SMS_PROVIDER_SMSPOOL;
+}
+
+function supportsFreePhoneReuseProvider(provider = '') {
+  const normalized = normalizePhoneSmsProviderValue(provider);
+  if (typeof window !== 'undefined' && window.PhoneSmsProviderRegistry?.supportsFreePhoneReuse) {
+    return Boolean(window.PhoneSmsProviderRegistry.supportsFreePhoneReuse(normalized));
+  }
+  return normalized === PHONE_SMS_PROVIDER_HERO
+    || normalized === PHONE_SMS_PROVIDER_FIVE_SIM
+    || normalized === PHONE_SMS_PROVIDER_SMSBOWER
+    || normalized === PHONE_SMS_PROVIDER_SMSPOOL;
 }
 
 function buildPhoneActivationOptionLabel(activation = null, sourceLabel = '') {
@@ -7118,6 +7532,208 @@ async function loadHeroSmsCountries() {
       fallbackItems.forEach((entry) => heroSmsCountrySearchTextById.set(String(entry.id), entry.searchText));
       if (typeof showToast === 'function') {
         showToast(`5sim 国家列表加载失败：${normalizeHeroSmsFetchErrorMessage(error)}（已切换为内置国家列表）`, 'warn', 2800);
+      }
+    }
+  } else if (provider === PHONE_SMS_PROVIDER_GRIZZLYSMS) {
+    try {
+      const apiKey = String(inputHeroSmsApiKey?.value || latestState?.grizzlySmsApiKey || '').trim();
+      if (!apiKey) {
+        throw new Error('缺少 API Key');
+      }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const url = new URL('https://api.grizzlysms.com/stubs/handler_api.php');
+      url.searchParams.set('action', 'getCountries');
+      url.searchParams.set('api_key', apiKey);
+      const response = await fetch(url.toString(), {
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      clearTimeout(timeoutId);
+      const payload = await response.json();
+      const countrySource = payload?.value ?? payload;
+      const countries = Array.isArray(countrySource)
+        ? countrySource
+        : (countrySource && typeof countrySource === 'object' ? Object.values(countrySource) : []);
+      if (!countries.length) {
+        throw new Error('国家列表为空');
+      }
+      const optionItems = countries
+        .filter((item) => Number(item?.id) > 0 && (String(item?.eng || '').trim() || String(item?.chn || '').trim() || String(item?.name || '').trim()))
+        .sort((left, right) => String(left.eng || left.name || '').localeCompare(String(right.eng || right.name || '')))
+        .map((item) => {
+          const id = normalizeHeroSmsCountryId(item.id);
+          const normalizedItem = {
+            id,
+            chn: String(item.chn || item.name_cn || item.cn || '').trim(),
+            eng: String(item.eng || item.name_en || item.name || '').trim(),
+            iso: item.iso || item.isoCode || item.code || '',
+            prefix: item.prefix || item.phoneCode || item.phone_code || '',
+          };
+          const label = buildHeroSmsCountryDisplayLabel(normalizedItem);
+          return {
+            id,
+            label: String(label || '').trim() || `Country #${id}`,
+            searchText: buildHeroSmsCountrySearchText(normalizedItem, label, String(id)),
+          };
+        });
+      if (!optionItems.length) {
+        throw new Error('国家列表为空');
+      }
+      heroSmsCountrySearchTextById.clear();
+      optionItems.forEach((entry) => heroSmsCountrySearchTextById.set(String(entry.id), entry.searchText));
+      applyOptions(optionItems, selectHeroSmsCountry);
+      applyOptions(optionItems, selectHeroSmsCountryFallback);
+    } catch (error) {
+      console.warn('加载 GrizzlySMS 国家列表失败：', error);
+      const fallbackItems = HERO_SMS_FALLBACK_COUNTRY_ITEMS
+        .map((item) => {
+          const id = normalizeHeroSmsCountryId(item.id);
+          const label = buildHeroSmsCountryDisplayLabel(item);
+          return {
+            id,
+            label: String(label || '').trim() || `Country #${id}`,
+            searchText: buildHeroSmsCountrySearchText(item, label, String(id)),
+          };
+        })
+        .filter((item) => item.id > 0);
+      applyOptions(fallbackItems, selectHeroSmsCountry);
+      applyOptions(fallbackItems, selectHeroSmsCountryFallback);
+      heroSmsCountrySearchTextById.clear();
+      fallbackItems.forEach((entry) => heroSmsCountrySearchTextById.set(String(entry.id), entry.searchText));
+      if (typeof showToast === 'function') {
+        showToast(`GrizzlySMS 国家列表加载失败：${normalizeHeroSmsFetchErrorMessage(error)}（已切换为内置国家列表）`, 'warn', 2800);
+      }
+    }
+  } else if (provider === PHONE_SMS_PROVIDER_SMSBOWER) {
+    try {
+      const apiKey = String(inputHeroSmsApiKey?.value || latestState?.smsBowerApiKey || '').trim();
+      if (!apiKey) {
+        throw new Error('缺少 API Key');
+      }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const url = new URL('https://smsbower.page/stubs/handler_api.php');
+      url.searchParams.set('action', 'getCountries');
+      url.searchParams.set('api_key', apiKey);
+      url.searchParams.set('lang', 'en');
+      const response = await fetch(url.toString(), {
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      clearTimeout(timeoutId);
+      const payload = await response.json();
+      const countrySource = payload?.value ?? payload;
+      const countries = Array.isArray(countrySource)
+        ? countrySource
+        : (countrySource && typeof countrySource === 'object' ? Object.values(countrySource) : []);
+      if (!countries.length) {
+        throw new Error('国家列表为空');
+      }
+      const optionItems = countries
+        .filter((item) => Number(item?.id) > 0 && (String(item?.eng || '').trim() || String(item?.chn || '').trim() || String(item?.name || '').trim()))
+        .sort((left, right) => String(left.eng || left.name || '').localeCompare(String(right.eng || right.name || '')))
+        .map((item) => {
+          const id = normalizeHeroSmsCountryId(item.id);
+          const normalizedItem = {
+            id,
+            chn: String(item.chn || item.name_cn || item.cn || '').trim(),
+            eng: String(item.eng || item.name_en || item.name || '').trim(),
+            iso: item.iso || item.isoCode || item.code || '',
+            prefix: item.prefix || item.phoneCode || item.phone_code || '',
+          };
+          const label = buildHeroSmsCountryDisplayLabel(normalizedItem);
+          return {
+            id,
+            label: String(label || '').trim() || `Country #${id}`,
+            searchText: buildHeroSmsCountrySearchText(normalizedItem, label, String(id)),
+          };
+        });
+      if (!optionItems.length) {
+        throw new Error('国家列表为空');
+      }
+      heroSmsCountrySearchTextById.clear();
+      optionItems.forEach((entry) => heroSmsCountrySearchTextById.set(String(entry.id), entry.searchText));
+      applyOptions(optionItems, selectHeroSmsCountry);
+      applyOptions(optionItems, selectHeroSmsCountryFallback);
+    } catch (error) {
+      console.warn('加载 SMSBower 国家列表失败：', error);
+      const fallbackItems = SMSBOWER_FALLBACK_COUNTRY_ITEMS
+        .map((item) => {
+          const id = normalizeHeroSmsCountryId(item.id);
+          const label = buildHeroSmsCountryDisplayLabel(item);
+          return {
+            id,
+            label: String(label || '').trim() || `Country #${id}`,
+            searchText: item.searchText || buildHeroSmsCountrySearchText(item, label, String(id)),
+          };
+        })
+        .filter((item) => item.id > 0);
+      applyOptions(fallbackItems, selectHeroSmsCountry);
+      applyOptions(fallbackItems, selectHeroSmsCountryFallback);
+      heroSmsCountrySearchTextById.clear();
+      fallbackItems.forEach((entry) => heroSmsCountrySearchTextById.set(String(entry.id), entry.searchText));
+      if (typeof showToast === 'function') {
+        showToast(`SMSBower 国家列表加载失败：${normalizeHeroSmsFetchErrorMessage(error)}（已切换为内置国家列表）`, 'warn', 2800);
+      }
+    }
+  } else if (provider === PHONE_SMS_PROVIDER_SMSPOOL) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch('https://api.smspool.net/country/retrieve_all', {
+        method: 'POST',
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      clearTimeout(timeoutId);
+      const payload = await response.json();
+      const countries = Array.isArray(payload) ? payload : [];
+      if (!countries.length) {
+        throw new Error('国家列表为空');
+      }
+      const optionItems = countries
+        .map((item) => {
+          const id = normalizeHeroSmsCountryId(item?.ID ?? item?.id, 0);
+          const name = String(item?.name || '').trim();
+          const shortName = String(item?.short_name || item?.shortName || '').trim();
+          const cc = String(item?.cc || '').trim().toUpperCase();
+          if (!(id > 0) || !name) {
+            return null;
+          }
+          const label = shortName && shortName.toLowerCase() !== name.toLowerCase()
+            ? `${name} (${shortName})`
+            : name;
+          return {
+            id,
+            label,
+            searchText: [label, name, shortName, cc, String(id)].filter(Boolean).join(' '),
+          };
+        })
+        .filter(Boolean)
+        .sort((left, right) => String(left.label || '').localeCompare(String(right.label || '')));
+      if (!optionItems.length) {
+        throw new Error('国家列表为空');
+      }
+      heroSmsCountrySearchTextById.clear();
+      optionItems.forEach((entry) => heroSmsCountrySearchTextById.set(String(entry.id), entry.searchText));
+      applyOptions(optionItems, selectHeroSmsCountry);
+      applyOptions(optionItems, selectHeroSmsCountryFallback);
+    } catch (error) {
+      console.warn('加载 SMSPool 国家列表失败：', error);
+      const fallbackItems = [
+        {
+          id: normalizeHeroSmsCountryId(latestState?.smsPoolCountryId || DEFAULT_SMSPOOL_COUNTRY_ID),
+          label: normalizeHeroSmsCountryLabel(latestState?.smsPoolCountryLabel || DEFAULT_SMSPOOL_COUNTRY_LABEL, DEFAULT_SMSPOOL_COUNTRY_LABEL),
+          searchText: `${normalizeHeroSmsCountryLabel(latestState?.smsPoolCountryLabel || DEFAULT_SMSPOOL_COUNTRY_LABEL, DEFAULT_SMSPOOL_COUNTRY_LABEL)} ${normalizeHeroSmsCountryId(latestState?.smsPoolCountryId || DEFAULT_SMSPOOL_COUNTRY_ID)} US +1`,
+        },
+      ];
+      applyOptions(fallbackItems, selectHeroSmsCountry);
+      applyOptions(fallbackItems, selectHeroSmsCountryFallback);
+      heroSmsCountrySearchTextById.clear();
+      fallbackItems.forEach((entry) => heroSmsCountrySearchTextById.set(String(entry.id), entry.searchText));
+      if (typeof showToast === 'function') {
+        showToast(`SMSPool 国家列表加载失败：${normalizeHeroSmsFetchErrorMessage(error)}（已切换为内置国家列表）`, 'warn', 2800);
       }
     }
   } else if (provider === PHONE_SMS_PROVIDER_SMS_VERIFICATION_NUMBER) {
@@ -8391,7 +9007,7 @@ async function previewHeroSmsPriceTiers() {
             smsBowerLines.push(`${countryLabel}: ${summarizeHeroSmsPreviewError(payload, response.status)}`);
             continue;
           }
-          const tierEntries = collectPriceEntries(payload, [])
+          const tierEntries = collectGenericPhoneSmsPriceEntries(payload, [])
             .filter((entry) => Number.isFinite(Number(entry.cost)) && Number(entry.cost) > 0)
             .map((entry) => ({
               price: Math.round(Number(entry.cost) * 10000) / 10000,
@@ -8474,7 +9090,7 @@ async function previewHeroSmsPriceTiers() {
             lines.push(`${countryLabel}: ${summarizeHeroSmsPreviewError(payload, response.status)}`);
             continue;
           }
-          const tierEntries = collectPriceEntries(payload, [])
+          const tierEntries = collectGenericPhoneSmsPriceEntries(payload, [])
             .filter((entry) => Number.isFinite(Number(entry.cost)) && Number(entry.cost) > 0)
             .map((entry) => ({
               price: Math.round(Number(entry.cost) * 10000) / 10000,
@@ -8556,7 +9172,7 @@ async function previewHeroSmsPriceTiers() {
             grizzlySmsLines.push(`${countryLabel}: ${summarizeHeroSmsPreviewError(payload, response.status)}`);
             continue;
           }
-          const tierEntries = collectPriceEntries(payload, [])
+          const tierEntries = collectGenericPhoneSmsPriceEntries(payload, [])
             .filter((entry) => Number.isFinite(Number(entry.cost)) && Number(entry.cost) > 0)
             .map((entry) => ({
               price: Math.round(Number(entry.cost) * 10000) / 10000,
@@ -8638,7 +9254,7 @@ async function previewHeroSmsPriceTiers() {
             smsPoolLines.push(`${countryLabel}: ${summarizeHeroSmsPreviewError(payload, response.status)}`);
             continue;
           }
-          const tierEntries = collectPriceEntries(payload, [])
+          const tierEntries = collectGenericPhoneSmsPriceEntries(payload, [])
             .filter((entry) => Number.isFinite(Number(entry.cost)) && Number(entry.cost) > 0)
             .map((entry) => ({
               price: Math.round(Number(entry.cost) * 10000) / 10000,
@@ -9080,14 +9696,23 @@ function getStoredFreePhoneReuseAutoEnabled(state = latestState) {
 }
 
 function restorePhoneReuseControlsFromState(state = latestState) {
+  const provider = getSelectedPhoneSmsProvider();
+  const supportsActivationReuse = supportsPhoneActivationReuseProvider(provider);
+  const supportsFreeReuse = supportsFreePhoneReuseProvider(provider);
   if (typeof inputHeroSmsReuseEnabled !== 'undefined' && inputHeroSmsReuseEnabled) {
-    inputHeroSmsReuseEnabled.checked = getStoredPhoneSmsReuseEnabled(state);
+    inputHeroSmsReuseEnabled.checked = supportsActivationReuse
+      ? getStoredPhoneSmsReuseEnabled(state)
+      : false;
   }
   if (typeof inputFreePhoneReuseEnabled !== 'undefined' && inputFreePhoneReuseEnabled) {
-    inputFreePhoneReuseEnabled.checked = getStoredFreePhoneReuseEnabled(state);
+    inputFreePhoneReuseEnabled.checked = supportsFreeReuse
+      ? getStoredFreePhoneReuseEnabled(state)
+      : false;
   }
   if (typeof inputFreePhoneReuseAutoEnabled !== 'undefined' && inputFreePhoneReuseAutoEnabled) {
-    inputFreePhoneReuseAutoEnabled.checked = getStoredFreePhoneReuseAutoEnabled(state);
+    inputFreePhoneReuseAutoEnabled.checked = supportsFreeReuse
+      ? getStoredFreePhoneReuseAutoEnabled(state)
+      : false;
   }
 }
 
@@ -9098,9 +9723,30 @@ function setElementReuseLockedState(element, locked, title = PHONE_SIGNUP_REUSE_
   element.classList?.toggle?.('is-disabled', Boolean(locked));
   if (locked) {
     element.title = title;
-  } else if (element.title === title) {
+  } else if (
+    element.title === title
+    || element.title === PHONE_SIGNUP_REUSE_LOCK_TITLE
+    || element.title === SMSBOWER_REUSE_LOCK_TITLE
+    || element.title === PROVIDER_REUSE_LOCK_TITLE
+    || element.title === PROVIDER_FREE_REUSE_LOCK_TITLE
+  ) {
     element.title = '';
   }
+}
+
+function enforcePhoneSmsReuseLockState(provider = getSelectedPhoneSmsProvider()) {
+  const normalizedProvider = normalizePhoneSmsProviderValue(provider);
+  const providerReuseLocked = !supportsPhoneActivationReuseProvider(normalizedProvider);
+  const phoneSignupReuseLocked = typeof isPhoneSignupReuseLocked === 'function'
+    ? isPhoneSignupReuseLocked(latestState)
+    : false;
+  if (typeof inputHeroSmsReuseEnabled !== 'undefined' && inputHeroSmsReuseEnabled) {
+    if (providerReuseLocked || phoneSignupReuseLocked) {
+      inputHeroSmsReuseEnabled.checked = false;
+    }
+    inputHeroSmsReuseEnabled.disabled = inputHeroSmsReuseEnabled.disabled || providerReuseLocked || phoneSignupReuseLocked;
+  }
+  return providerReuseLocked || phoneSignupReuseLocked;
 }
 
 function normalizePanelMode(value = '') {
@@ -9604,10 +10250,14 @@ function updatePhoneVerificationSettingsUI() {
     typeof rowPhoneCodeSettingsGroup !== 'undefined' ? rowPhoneCodeSettingsGroup : null,
     typeof rowPhoneVerificationResendCount !== 'undefined' ? rowPhoneVerificationResendCount : null,
     typeof rowPhoneReplacementLimit !== 'undefined' ? rowPhoneReplacementLimit : null,
+    typeof rowWhatsappPageRestartEnabled !== 'undefined' ? rowWhatsappPageRestartEnabled : null,
+    typeof rowWhatsappPageRestartMaxAttempts !== 'undefined' ? rowWhatsappPageRestartMaxAttempts : null,
     typeof rowPhoneCodeWaitSeconds !== 'undefined' ? rowPhoneCodeWaitSeconds : null,
     typeof rowPhoneCodeTimeoutWindows !== 'undefined' ? rowPhoneCodeTimeoutWindows : null,
     typeof rowPhoneCodePollIntervalSeconds !== 'undefined' ? rowPhoneCodePollIntervalSeconds : null,
     typeof rowPhoneCodePollMaxRounds !== 'undefined' ? rowPhoneCodePollMaxRounds : null,
+    typeof rowPhoneActivationRetryRounds !== 'undefined' ? rowPhoneActivationRetryRounds : null,
+    typeof rowPhoneAutoReleaseOnStopEnabled !== 'undefined' ? rowPhoneAutoReleaseOnStopEnabled : null,
     typeof rowFreePhoneReuseEnabled !== 'undefined' ? rowFreePhoneReuseEnabled : null,
     typeof rowFreePhoneReuseAutoEnabled !== 'undefined' ? rowFreePhoneReuseAutoEnabled : null,
     typeof rowChatGptApiSmsPool !== 'undefined' ? rowChatGptApiSmsPool : null,
@@ -9617,6 +10267,13 @@ function updatePhoneVerificationSettingsUI() {
       row.style.display = showSettings ? '' : 'none';
     }
   });
+  if (typeof rowWhatsappPageRestartMaxAttempts !== 'undefined' && rowWhatsappPageRestartMaxAttempts) {
+    rowWhatsappPageRestartMaxAttempts.style.display = showSettings && Boolean(
+      typeof inputWhatsappPageRestartEnabled !== 'undefined' && inputWhatsappPageRestartEnabled
+        ? inputWhatsappPageRestartEnabled.checked
+        : true
+    ) ? '' : 'none';
+  }
   if (typeof rowPhoneSignupReloginAfterBindEmail !== 'undefined' && rowPhoneSignupReloginAfterBindEmail) {
     rowPhoneSignupReloginAfterBindEmail.style.display = showPhoneSignupReloginAfterBindEmail ? '' : 'none';
   }
@@ -9662,13 +10319,17 @@ function updatePhoneVerificationSettingsUI() {
         : latestState?.signupMethod,
     })
     : false;
+  const providerActivationReuseLocked = !supportsPhoneActivationReuseProvider(provider);
+  const providerFreeReuseLocked = !supportsFreePhoneReuseProvider(provider);
   if (!phoneSignupReuseLocked && phoneSignupReuseUiWasLocked) {
     restorePhoneReuseControlsFromState(latestState);
   }
-  if (phoneSignupReuseLocked) {
+  if (phoneSignupReuseLocked || providerActivationReuseLocked) {
     if (typeof inputHeroSmsReuseEnabled !== 'undefined' && inputHeroSmsReuseEnabled) {
       inputHeroSmsReuseEnabled.checked = false;
     }
+  }
+  if (phoneSignupReuseLocked || providerFreeReuseLocked) {
     if (typeof inputFreePhoneReuseEnabled !== 'undefined' && inputFreePhoneReuseEnabled) {
       inputFreePhoneReuseEnabled.checked = false;
     }
@@ -9686,54 +10347,71 @@ function updatePhoneVerificationSettingsUI() {
   }
   const freePhoneReuseEnabled = Boolean(
     !phoneSignupReuseLocked
+    && !providerFreeReuseLocked
     && typeof inputFreePhoneReuseEnabled !== 'undefined'
     && inputFreePhoneReuseEnabled?.checked
   );
-  const freePhoneReuseAutoAvailable = showSettings && !phoneSignupReuseLocked && freePhoneReuseEnabled;
+  const freePhoneReuseAutoAvailable = showSettings && !phoneSignupReuseLocked && !providerFreeReuseLocked && freePhoneReuseEnabled;
   if (typeof inputHeroSmsReuseEnabled !== 'undefined' && inputHeroSmsReuseEnabled) {
-    inputHeroSmsReuseEnabled.disabled = settingsLocked || phoneSignupReuseLocked;
+    inputHeroSmsReuseEnabled.disabled = settingsLocked || phoneSignupReuseLocked || providerActivationReuseLocked;
+  }
+  if (typeof inputPhoneAutoReleaseOnStopEnabled !== 'undefined' && inputPhoneAutoReleaseOnStopEnabled) {
+    inputPhoneAutoReleaseOnStopEnabled.disabled = settingsLocked;
+  }
+  if (typeof inputFreePhoneReuseEnabled !== 'undefined' && inputFreePhoneReuseEnabled) {
+    inputFreePhoneReuseEnabled.disabled = settingsLocked || phoneSignupReuseLocked || providerFreeReuseLocked;
   }
   if (typeof inputFreePhoneReuseAutoEnabled !== 'undefined' && inputFreePhoneReuseAutoEnabled) {
-    inputFreePhoneReuseAutoEnabled.disabled = settingsLocked || phoneSignupReuseLocked || !freePhoneReuseAutoAvailable;
+    inputFreePhoneReuseAutoEnabled.disabled = settingsLocked || phoneSignupReuseLocked || providerFreeReuseLocked || !freePhoneReuseAutoAvailable;
     if (!freePhoneReuseAutoAvailable) {
       inputFreePhoneReuseAutoEnabled.checked = false;
     }
   }
-  setFreePhoneReuseControlsLocked(settingsLocked || phoneSignupReuseLocked);
+  setFreePhoneReuseControlsLocked(settingsLocked || phoneSignupReuseLocked || providerFreeReuseLocked);
   if (typeof selectHeroSmsPreferredActivation !== 'undefined' && selectHeroSmsPreferredActivation) {
-    selectHeroSmsPreferredActivation.disabled = settingsLocked || phoneSignupReuseLocked;
+    selectHeroSmsPreferredActivation.disabled = settingsLocked || phoneSignupReuseLocked || providerActivationReuseLocked;
   }
   if (typeof inputFreeReusablePhone !== 'undefined' && inputFreeReusablePhone) {
-    inputFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked;
+    inputFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked || providerFreeReuseLocked;
   }
   if (typeof btnSaveFreeReusablePhone !== 'undefined' && btnSaveFreeReusablePhone) {
-    btnSaveFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked;
+    btnSaveFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked || providerFreeReuseLocked;
   }
   if (typeof btnClearFreeReusablePhone !== 'undefined' && btnClearFreeReusablePhone) {
-    btnClearFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked;
+    btnClearFreeReusablePhone.disabled = settingsLocked || phoneSignupReuseLocked || providerFreeReuseLocked;
   }
   const heroSmsReuseRow = typeof inputHeroSmsReuseEnabled !== 'undefined' && inputHeroSmsReuseEnabled?.closest
     ? inputHeroSmsReuseEnabled.closest('.hero-sms-price-control')
     : null;
-  setElementReuseLockedState(heroSmsReuseRow, phoneSignupReuseLocked);
+  setElementReuseLockedState(
+    heroSmsReuseRow,
+    phoneSignupReuseLocked || providerActivationReuseLocked,
+    phoneSignupReuseLocked
+      ? PHONE_SIGNUP_REUSE_LOCK_TITLE
+      : (smsBowerProvider ? SMSBOWER_REUSE_LOCK_TITLE : PROVIDER_REUSE_LOCK_TITLE)
+  );
   setElementReuseLockedState(
     typeof rowFreePhoneReuseEnabled !== 'undefined' ? rowFreePhoneReuseEnabled : null,
-    phoneSignupReuseLocked
+    phoneSignupReuseLocked || providerFreeReuseLocked,
+    phoneSignupReuseLocked ? PHONE_SIGNUP_REUSE_LOCK_TITLE : PROVIDER_FREE_REUSE_LOCK_TITLE
   );
   setElementReuseLockedState(
     typeof rowFreePhoneReuseAutoEnabled !== 'undefined' ? rowFreePhoneReuseAutoEnabled : null,
-    phoneSignupReuseLocked
+    phoneSignupReuseLocked || providerFreeReuseLocked,
+    phoneSignupReuseLocked ? PHONE_SIGNUP_REUSE_LOCK_TITLE : PROVIDER_FREE_REUSE_LOCK_TITLE
   );
   setElementReuseLockedState(
     typeof rowHeroSmsPreferredActivation !== 'undefined' ? rowHeroSmsPreferredActivation : null,
-    phoneSignupReuseLocked
+    phoneSignupReuseLocked || providerActivationReuseLocked,
+    phoneSignupReuseLocked ? PHONE_SIGNUP_REUSE_LOCK_TITLE : PROVIDER_REUSE_LOCK_TITLE
   );
   setElementReuseLockedState(
     typeof rowFreeReusablePhone !== 'undefined' ? rowFreeReusablePhone : null,
-    phoneSignupReuseLocked
+    phoneSignupReuseLocked || providerFreeReuseLocked,
+    phoneSignupReuseLocked ? PHONE_SIGNUP_REUSE_LOCK_TITLE : PROVIDER_FREE_REUSE_LOCK_TITLE
   );
   if (typeof rowFreePhoneReuseAutoEnabled !== 'undefined' && rowFreePhoneReuseAutoEnabled) {
-    rowFreePhoneReuseAutoEnabled.classList.toggle('is-disabled', phoneSignupReuseLocked || !freePhoneReuseAutoAvailable);
+    rowFreePhoneReuseAutoEnabled.classList.toggle('is-disabled', phoneSignupReuseLocked || providerFreeReuseLocked || !freePhoneReuseAutoAvailable);
   }
   const runtimeVisible = enabled;
   [
@@ -11083,6 +11761,15 @@ function applySettingsState(state) {
     const cloudflareTempEmailProvider = typeof CLOUDFLARE_TEMP_EMAIL_PROVIDER === 'string'
       ? CLOUDFLARE_TEMP_EMAIL_PROVIDER
       : 'cloudflare-temp-email';
+    const freemailProvider = typeof FREEMAIL_PROVIDER === 'string'
+      ? FREEMAIL_PROVIDER
+      : 'freemail';
+    const outlookEmailPlusProvider = typeof OUTLOOK_EMAIL_PLUS_PROVIDER === 'string'
+      ? OUTLOOK_EMAIL_PLUS_PROVIDER
+      : 'outlook-email-plus';
+    const outlookEmailPlusGenerator = typeof OUTLOOK_EMAIL_PLUS_GENERATOR === 'string'
+      ? OUTLOOK_EMAIL_PLUS_GENERATOR
+      : 'outlook-email-plus';
     const gmailProvider = typeof GMAIL_PROVIDER === 'string'
       ? GMAIL_PROVIDER
       : 'gmail';
@@ -11095,6 +11782,10 @@ function applySettingsState(state) {
     const restoredEmailGenerator = String(state?.emailGenerator || '').trim().toLowerCase();
     if (restoredMailProvider === cloudflareTempEmailProvider) {
       selectEmailGenerator.value = 'cloudflare-temp-email';
+    } else if (restoredMailProvider === freemailProvider) {
+      selectEmailGenerator.value = freemailProvider;
+    } else if (restoredMailProvider === outlookEmailPlusProvider) {
+      selectEmailGenerator.value = outlookEmailPlusGenerator;
     } else if (restoredMailProvider === 'hotmail-api') {
       selectEmailGenerator.value = 'duck';
     } else if (restoredMailProvider === gmailProvider) {
@@ -11111,6 +11802,10 @@ function applySettingsState(state) {
       selectEmailGenerator.value = 'cloudflare-temp-email';
     } else if (restoredEmailGenerator === 'cloudmail') {
       selectEmailGenerator.value = 'cloudmail';
+    } else if (restoredEmailGenerator === freemailProvider) {
+      selectEmailGenerator.value = freemailProvider;
+    } else if (restoredEmailGenerator === outlookEmailPlusGenerator) {
+      selectEmailGenerator.value = outlookEmailPlusGenerator;
     } else {
       selectEmailGenerator.value = 'duck';
     }
@@ -11128,6 +11823,12 @@ function applySettingsState(state) {
   }
   if (selectIcloudForwardMailProvider) {
     selectIcloudForwardMailProvider.value = normalizeIcloudForwardMailProvider(state?.icloudForwardMailProvider);
+  }
+  if (inputIcloudApiBaseUrl) {
+    inputIcloudApiBaseUrl.value = normalizeIcloudApiBaseUrlValue(state?.icloudApiBaseUrl);
+  }
+  if (inputIcloudApiAdminKey) {
+    inputIcloudApiAdminKey.value = state?.icloudApiAdminKey || '';
   }
   if (checkboxAutoDeleteIcloud) {
     checkboxAutoDeleteIcloud.checked = Boolean(state?.autoDeleteUsedIcloudAlias);
@@ -11176,6 +11877,12 @@ function applySettingsState(state) {
   applyCloudflareTempEmailSettingsState(state);
   if (typeof applyCloudMailSettingsState === 'function') {
     applyCloudMailSettingsState(state);
+  }
+  if (typeof applyFreemailSettingsState === 'function') {
+    applyFreemailSettingsState(state);
+  }
+  if (typeof applyOutlookEmailPlusSettingsState === 'function') {
+    applyOutlookEmailPlusSettingsState(state);
   }
   renderCloudflareDomainOptions(state?.cloudflareDomain || '');
   setCloudflareDomainEditMode(false, { clearInput: true });
@@ -11363,10 +12070,12 @@ function applySettingsState(state) {
       : String(state?.nexSmsServiceCode || defaultNexSmsServiceCode).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '') || defaultNexSmsServiceCode;
   }
   if (typeof inputHeroSmsReuseEnabled !== 'undefined' && inputHeroSmsReuseEnabled) {
-    inputHeroSmsReuseEnabled.checked = normalizeHeroSmsReuseEnabledValue(
-      state?.phoneSmsReuseEnabled,
-      state?.heroSmsReuseEnabled
-    );
+    inputHeroSmsReuseEnabled.checked = restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_SMSBOWER
+      ? false
+      : normalizeHeroSmsReuseEnabledValue(
+        state?.phoneSmsReuseEnabled,
+        state?.heroSmsReuseEnabled
+      );
   }
   if (typeof inputFreePhoneReuseEnabled !== 'undefined' && inputFreePhoneReuseEnabled) {
     inputFreePhoneReuseEnabled.checked = Boolean(state?.freePhoneReuseEnabled);
@@ -11437,6 +12146,19 @@ function applySettingsState(state) {
       )
     );
   }
+  if (typeof inputWhatsappPageRestartEnabled !== 'undefined' && inputWhatsappPageRestartEnabled) {
+    inputWhatsappPageRestartEnabled.checked = state?.whatsappPhoneVerificationRestartEnabled !== undefined
+      ? Boolean(state.whatsappPhoneVerificationRestartEnabled)
+      : true;
+  }
+  if (typeof inputWhatsappPageRestartMaxAttempts !== 'undefined' && inputWhatsappPageRestartMaxAttempts) {
+    inputWhatsappPageRestartMaxAttempts.value = String(
+      normalizeWhatsAppPhoneVerificationRestartMaxAttempts(
+        state?.whatsappPhoneVerificationRestartMaxAttempts,
+        DEFAULT_WHATSAPP_PHONE_VERIFICATION_RESTART_MAX_ATTEMPTS
+      )
+    );
+  }
   if (typeof inputPhoneCodeWaitSeconds !== 'undefined' && inputPhoneCodeWaitSeconds) {
     inputPhoneCodeWaitSeconds.value = String(
       normalizePhoneCodeWaitSecondsValue(state?.phoneCodeWaitSeconds, DEFAULT_PHONE_CODE_WAIT_SECONDS)
@@ -11459,6 +12181,17 @@ function applySettingsState(state) {
     inputPhoneCodePollMaxRounds.value = String(
       normalizePhoneCodePollMaxRoundsValue(state?.phoneCodePollMaxRounds, DEFAULT_PHONE_CODE_POLL_MAX_ROUNDS)
     );
+  }
+  if (typeof inputPhoneActivationRetryRounds !== 'undefined' && inputPhoneActivationRetryRounds) {
+    inputPhoneActivationRetryRounds.value = String(
+      normalizePhoneActivationRetryRoundsValue(
+        state?.heroSmsActivationRetryRounds,
+        DEFAULT_PHONE_ACTIVATION_RETRY_ROUNDS
+      )
+    );
+  }
+  if (typeof inputPhoneAutoReleaseOnStopEnabled !== 'undefined' && inputPhoneAutoReleaseOnStopEnabled) {
+    inputPhoneAutoReleaseOnStopEnabled.checked = state?.phoneAutoReleaseOnStopEnabled !== false;
   }
   if (typeof applyHeroSmsFallbackSelection === 'function') {
     if (previousPhoneSmsProvider === restoredPhoneSmsProvider) {
@@ -12012,7 +12745,12 @@ function isLuckmailProvider(provider = selectMailProvider.value) {
 }
 
 function isIcloudMailProvider(provider = selectMailProvider.value) {
-  return String(provider || '').trim().toLowerCase() === ICLOUD_PROVIDER;
+  const normalized = String(provider || '').trim().toLowerCase();
+  return normalized === ICLOUD_PROVIDER || normalized === ICLOUD_API_PROVIDER;
+}
+
+function isIcloudApiMailProvider(provider = selectMailProvider.value) {
+  return String(provider || '').trim().toLowerCase() === ICLOUD_API_PROVIDER;
 }
 
 function normalizeLuckmailBaseUrl(value = '') {
@@ -12059,6 +12797,8 @@ function getSelectedEmailGenerator() {
   if (generator === 'cloudflare') return 'cloudflare';
   if (generator === 'cloudflare-temp-email') return 'cloudflare-temp-email';
   if (generator === 'cloudmail') return 'cloudmail';
+  if (generator === FREEMAIL_PROVIDER) return FREEMAIL_PROVIDER;
+  if (generator === OUTLOOK_EMAIL_PLUS_GENERATOR) return OUTLOOK_EMAIL_PLUS_GENERATOR;
   return 'duck';
 }
 
@@ -12112,6 +12852,22 @@ function getEmailGeneratorUiCopy() {
       placeholder: '点击生成 Cloud Mail 邮箱，或手动粘贴邮箱',
       successVerb: '生成',
       label: 'Cloud Mail',
+    };
+  }
+  if (getSelectedEmailGenerator() === FREEMAIL_PROVIDER) {
+    return {
+      buttonLabel: '生成',
+      placeholder: '点击生成 freemail 邮箱，或手动粘贴邮箱',
+      successVerb: '生成',
+      label: 'freemail',
+    };
+  }
+  if (getSelectedEmailGenerator() === OUTLOOK_EMAIL_PLUS_GENERATOR) {
+    return {
+      buttonLabel: '认领',
+      placeholder: '点击认领 Outlook Email Plus 邮箱，或手动粘贴邮箱',
+      successVerb: '认领',
+      label: 'Outlook Email Plus',
     };
   }
 
@@ -12347,7 +13103,8 @@ function getSelectedIcloudHostPreference() {
 
 function getMailProviderLoginUrl(provider = selectMailProvider.value) {
   const config = getMailProviderLoginConfig(provider);
-  if (String(provider || '').trim() === ICLOUD_PROVIDER) {
+  const normalizedProvider = String(provider || '').trim();
+  if (normalizedProvider === ICLOUD_PROVIDER || normalizedProvider === ICLOUD_API_PROVIDER) {
     return getIcloudLoginUrlForHost(getSelectedIcloudHostPreference());
   }
   const url = String(config?.url || '').trim();
@@ -12511,19 +13268,28 @@ function updateMailProviderUI() {
   const useCustomEmail = isCustomMailProvider();
   const useCloudflareTempEmailProvider = selectMailProvider.value === 'cloudflare-temp-email';
   const useCloudMailProvider = selectMailProvider.value === 'cloudmail';
+  const useFreemailProvider = selectMailProvider.value === FREEMAIL_PROVIDER;
+  const useOutlookEmailPlusProvider = selectMailProvider.value === OUTLOOK_EMAIL_PLUS_PROVIDER;
   const gmailAliasGenerator = typeof GMAIL_ALIAS_GENERATOR === 'string'
     ? GMAIL_ALIAS_GENERATOR
     : 'gmail-alias';
   const customEmailPoolGenerator = typeof CUSTOM_EMAIL_POOL_GENERATOR === 'string'
     ? CUSTOM_EMAIL_POOL_GENERATOR
     : 'custom-pool';
-  const allowedEmailGenerators = useHotmail || useLuckmail || useCustomEmail
-    ? new Set()
-    : (useCloudflareTempEmailProvider
-      ? new Set(['cloudflare-temp-email'])
-      : (useCloudMailProvider
-        ? new Set(['cloudmail'])
-        : (useGmail ? new Set([gmailAliasGenerator, customEmailPoolGenerator]) : null)));
+  let allowedEmailGenerators = null;
+  if (useHotmail || useLuckmail || useCustomEmail) {
+    allowedEmailGenerators = new Set();
+  } else if (useCloudflareTempEmailProvider) {
+    allowedEmailGenerators = new Set(['cloudflare-temp-email']);
+  } else if (useCloudMailProvider) {
+    allowedEmailGenerators = new Set(['cloudmail']);
+  } else if (useFreemailProvider) {
+    allowedEmailGenerators = new Set([FREEMAIL_PROVIDER]);
+  } else if (useOutlookEmailPlusProvider) {
+    allowedEmailGenerators = new Set([OUTLOOK_EMAIL_PLUS_GENERATOR]);
+  } else if (useGmail) {
+    allowedEmailGenerators = new Set([gmailAliasGenerator, customEmailPoolGenerator]);
+  }
   Array.from(selectEmailGenerator?.options || []).forEach((option) => {
     if (!option) return;
     const optionValue = String(option.value || '').trim().toLowerCase();
@@ -12552,6 +13318,12 @@ function updateMailProviderUI() {
   if (useCloudMailProvider && String(selectEmailGenerator?.value || '').trim().toLowerCase() !== 'cloudmail') {
     selectEmailGenerator.value = 'cloudmail';
   }
+  if (useFreemailProvider && String(selectEmailGenerator?.value || '').trim().toLowerCase() !== FREEMAIL_PROVIDER) {
+    selectEmailGenerator.value = FREEMAIL_PROVIDER;
+  }
+  if (useOutlookEmailPlusProvider && String(selectEmailGenerator?.value || '').trim().toLowerCase() !== OUTLOOK_EMAIL_PLUS_GENERATOR) {
+    selectEmailGenerator.value = OUTLOOK_EMAIL_PLUS_GENERATOR;
+  }
   const useEmailGenerator = !useHotmail && !useLuckmail && !useCustomEmail && (!useGeneratedAlias || useGmail);
   const aliasUiCopy = useGeneratedAlias
     ? getManagedAliasProviderUiCopy(selectMailProvider.value, mail2925Mode)
@@ -12576,6 +13348,8 @@ function updateMailProviderUI() {
   const useIcloud = selectedGenerator === 'icloud';
   const useCloudflareTempEmailGenerator = selectedGenerator === 'cloudflare-temp-email';
   const useCloudMailGenerator = selectedGenerator === 'cloudmail';
+  const useFreemailGenerator = selectedGenerator === FREEMAIL_PROVIDER;
+  const useOutlookEmailPlusGenerator = selectedGenerator === OUTLOOK_EMAIL_PLUS_GENERATOR;
   const showCloudflareDomain = useEmailGenerator && useCloudflare;
   const showCloudflareTempEmailSettings = useCloudflareTempEmailProvider || (useEmailGenerator && useCloudflareTempEmailGenerator);
   const showCloudflareTempEmailLookupMode = useCloudflareTempEmailProvider;
@@ -12592,6 +13366,10 @@ function updateMailProviderUI() {
   const showCloudMailSettings = useCloudMailProvider || (useEmailGenerator && useCloudMailGenerator);
   const showCloudMailReceiveMailbox = useCloudMailProvider && !useCloudMailGenerator;
   const showCloudMailDomain = useEmailGenerator && useCloudMailGenerator;
+  const showFreemailSettings = useFreemailProvider || (useEmailGenerator && useFreemailGenerator);
+  const showFreemailDomain = useEmailGenerator && useFreemailGenerator;
+  const showOutlookEmailPlusSettings = useOutlookEmailPlusProvider || (useEmailGenerator && useOutlookEmailPlusGenerator);
+  const useIcloudApiProvider = isIcloudApiMailProvider();
   const selectedIcloudHost = typeof getSelectedIcloudHostPreference === 'function'
     ? getSelectedIcloudHostPreference()
     : (normalizeIcloudHostValue(icloudHostPreferenceValue || latestState?.icloudHostPreference || '')
@@ -12599,8 +13377,8 @@ function updateMailProviderUI() {
       || 'icloud.com');
   const icloudTargetMailboxType = normalizeIcloudTargetMailboxType(icloudTargetMailboxTypeValue);
   const isIcloudComCnHost = selectedIcloudHost === 'icloud.com.cn';
-  const showIcloudTargetMailboxType = useIcloudProvider;
-  const showIcloudForwardMailProvider = useIcloudProvider && icloudTargetMailboxType === 'forward-mailbox';
+  const showIcloudTargetMailboxType = useIcloudProvider && !useIcloudApiProvider;
+  const showIcloudForwardMailProvider = useIcloudProvider && !useIcloudApiProvider && icloudTargetMailboxType === 'forward-mailbox';
   const showCloudflareTempEmailRandomSubdomainToggle = useEmailGenerator && useCloudflareTempEmailGenerator;
   const showCloudflareTempEmailDomain = useEmailGenerator && useCloudflareTempEmailGenerator;
   if (rowEmailGenerator) {
@@ -12625,6 +13403,22 @@ function updateMailProviderUI() {
   if (typeof rowCloudMailAdminPassword !== 'undefined' && rowCloudMailAdminPassword) rowCloudMailAdminPassword.style.display = showCloudMailSettings ? '' : 'none';
   if (typeof rowCloudMailReceiveMailbox !== 'undefined' && rowCloudMailReceiveMailbox) rowCloudMailReceiveMailbox.style.display = showCloudMailReceiveMailbox ? '' : 'none';
   if (typeof rowCloudMailDomain !== 'undefined' && rowCloudMailDomain) rowCloudMailDomain.style.display = showCloudMailDomain ? '' : 'none';
+  if (typeof freemailSection !== 'undefined' && freemailSection) {
+    freemailSection.style.display = showFreemailSettings ? '' : 'none';
+  }
+  if (typeof rowFreemailBaseUrl !== 'undefined' && rowFreemailBaseUrl) rowFreemailBaseUrl.style.display = showFreemailSettings ? '' : 'none';
+  if (typeof rowFreemailAdminUsername !== 'undefined' && rowFreemailAdminUsername) rowFreemailAdminUsername.style.display = showFreemailSettings ? '' : 'none';
+  if (typeof rowFreemailAdminPassword !== 'undefined' && rowFreemailAdminPassword) rowFreemailAdminPassword.style.display = showFreemailSettings ? '' : 'none';
+  if (typeof rowFreemailDomain !== 'undefined' && rowFreemailDomain) rowFreemailDomain.style.display = showFreemailDomain ? '' : 'none';
+  if (typeof outlookEmailPlusSection !== 'undefined' && outlookEmailPlusSection) {
+    outlookEmailPlusSection.style.display = showOutlookEmailPlusSettings ? '' : 'none';
+  }
+  if (typeof rowOutlookEmailPlusBaseUrl !== 'undefined' && rowOutlookEmailPlusBaseUrl) rowOutlookEmailPlusBaseUrl.style.display = showOutlookEmailPlusSettings ? '' : 'none';
+  if (typeof rowOutlookEmailPlusApiKey !== 'undefined' && rowOutlookEmailPlusApiKey) rowOutlookEmailPlusApiKey.style.display = showOutlookEmailPlusSettings ? '' : 'none';
+  if (typeof rowOutlookEmailPlusProvider !== 'undefined' && rowOutlookEmailPlusProvider) rowOutlookEmailPlusProvider.style.display = showOutlookEmailPlusSettings ? '' : 'none';
+  if (typeof rowOutlookEmailPlusProjectKey !== 'undefined' && rowOutlookEmailPlusProjectKey) rowOutlookEmailPlusProjectKey.style.display = showOutlookEmailPlusSettings ? '' : 'none';
+  if (typeof rowOutlookEmailPlusCallerIdPrefix !== 'undefined' && rowOutlookEmailPlusCallerIdPrefix) rowOutlookEmailPlusCallerIdPrefix.style.display = showOutlookEmailPlusSettings ? '' : 'none';
+  if (typeof rowOutlookEmailPlusAliasMax !== 'undefined' && rowOutlookEmailPlusAliasMax) rowOutlookEmailPlusAliasMax.style.display = showOutlookEmailPlusSettings ? '' : 'none';
   if (icloudSection) {
     const showIcloudSection = (useEmailGenerator && useIcloud) || useIcloudProvider;
     icloudSection.style.display = showIcloudSection ? '' : 'none';
@@ -12640,6 +13434,12 @@ function updateMailProviderUI() {
   }
   if (typeof rowIcloudForwardMailProvider !== 'undefined' && rowIcloudForwardMailProvider) {
     rowIcloudForwardMailProvider.style.display = showIcloudForwardMailProvider ? '' : 'none';
+  }
+  if (typeof rowIcloudApiBaseUrl !== 'undefined' && rowIcloudApiBaseUrl) {
+    rowIcloudApiBaseUrl.style.display = useIcloudApiProvider ? '' : 'none';
+  }
+  if (typeof rowIcloudApiAdminKey !== 'undefined' && rowIcloudApiAdminKey) {
+    rowIcloudApiAdminKey.style.display = useIcloudApiProvider ? '' : 'none';
   }
   rowCfDomain.style.display = showCloudflareDomain ? '' : 'none';
   const { domains } = getCloudflareDomainsFromState();
@@ -12692,6 +13492,7 @@ function updateMailProviderUI() {
     || useCustomEmail
     || useCloudflareTempEmailProvider
     || useCloudMailProvider
+    || useFreemailProvider
     || (useGeneratedAlias && !useGmail);
   if (useGmail) {
     labelEmailPrefix.textContent = 'Gmail 原邮箱';
@@ -12781,6 +13582,9 @@ function updateMailProviderUI() {
       || MAIL_PROVIDER_LOGIN_CONFIGS[forwardProvider]?.label
       || '目标邮箱';
     autoHintText.textContent = `iCloud ${isIcloudComCnHost ? 'com.cn' : ''} 当前使用转发收码：第 4/8 步会从 ${forwardProviderLabel} 轮询验证码。`;
+  }
+  if (autoHintText && useIcloudApiProvider) {
+    autoHintText.textContent = 'iCloud API 模式会通过侧栏配置的 Worker 拉取 QQ 转发验证码；自定义邮箱池需导入“隐藏邮箱地址----密钥”。';
   }
   if (useHotmail) {
     inputEmail.value = getCurrentHotmailEmail();
@@ -13447,6 +14251,12 @@ function updateButtonStates() {
       && normalizedIcloudTargetMailboxType === 'forward-mailbox';
     selectIcloudForwardMailProvider.disabled = disableIcloudControls || !allowIcloudForwardMailProvider;
   }
+  if (inputIcloudApiBaseUrl) {
+    inputIcloudApiBaseUrl.disabled = disableIcloudControls || !isIcloudApiMailProvider();
+  }
+  if (inputIcloudApiAdminKey) {
+    inputIcloudApiAdminKey.disabled = disableIcloudControls || !isIcloudApiMailProvider();
+  }
   if (selectIcloudFetchMode) {
     const allowIcloudFetchMode = getSelectedEmailGenerator() === ICLOUD_PROVIDER
       && !isCustomMailProvider()
@@ -13593,6 +14403,10 @@ async function fetchGeneratedEmail(options = {}) {
   if (isCustomMailProvider()) {
     throw new Error('当前邮箱服务为自定义邮箱，请直接填写注册邮箱。');
   }
+  const freemailValidation = validateFreemailConfigForGeneration({ focusOnError: true });
+  if (!freemailValidation.valid) {
+    throw new Error(freemailValidation.message);
+  }
   const defaultLabel = uiCopy.buttonLabel;
   btnFetchEmail.disabled = true;
   btnFetchEmail.textContent = '...';
@@ -13607,6 +14421,10 @@ async function fetchGeneratedEmail(options = {}) {
         generator: selectEmailGenerator.value,
         mailProvider: normalizeSupportedMailProvider(selectMailProvider?.value || latestState?.mailProvider),
         mail2925Mode: getSelectedMail2925Mode(),
+        freemailBaseUrl: normalizeFreemailBaseUrlValue(inputFreemailBaseUrl?.value || ''),
+        freemailAdminUsername: String(inputFreemailAdminUsername?.value || '').trim(),
+        freemailAdminPassword: inputFreemailAdminPassword?.value || '',
+        freemailDomain: normalizeFreemailDomainValue(inputFreemailDomain?.value || ''),
         ...(getSelectedEmailGenerator() === CUSTOM_EMAIL_POOL_GENERATOR
           ? {
               customEmailPool: getActiveCustomEmailPoolEmails(),
@@ -14128,6 +14946,7 @@ const chatGptApiSmsPoolManager = window.SidepanelHostedSmsPoolManager?.createHos
   },
   constants: {
     copyIcon: COPY_ICON,
+    usageLimit: 3,
   },
   labels: {
     poolLabel: 'ChatGPT API 接码池',
@@ -14854,6 +15673,14 @@ btnCloudflareTempEmailUsageGuide?.addEventListener('click', () => {
 
 btnCloudflareTempEmailGithub?.addEventListener('click', () => {
   openCloudflareTempEmailRepositoryPage();
+});
+
+btnFreemailGithub?.addEventListener('click', () => {
+  openExternalUrl(MAIL_PROVIDER_LOGIN_CONFIGS[FREEMAIL_PROVIDER]?.url || 'https://github.com/idinging/freemail');
+});
+
+btnOutlookEmailPlusGithub?.addEventListener('click', () => {
+  openExternalUrl(MAIL_PROVIDER_LOGIN_CONFIGS[OUTLOOK_EMAIL_PLUS_PROVIDER]?.url || 'https://github.com/ZeroPointSix/outlookEmailPlus');
 });
 
 extensionUpdateStatus?.addEventListener('click', () => {
@@ -16829,6 +17656,7 @@ selectPhoneSmsProvider?.addEventListener('change', async () => {
   if (selectPhoneSmsProvider) {
     selectPhoneSmsProvider.value = normalizePhoneSmsProviderValue(selectPhoneSmsProvider.value);
   }
+  enforcePhoneSmsReuseLockState(selectPhoneSmsProvider?.value);
   if (selectPhoneSmsProvider?.value === PHONE_SMS_PROVIDER_FIVE_SIM) {
     await loadFiveSimCountries().catch(() => { });
     applyFiveSimCountrySelection(
@@ -17344,9 +18172,11 @@ inputNexSmsServiceCode?.addEventListener('blur', () => {
 });
 
 inputHeroSmsReuseEnabled?.addEventListener('change', () => {
-  if (isPhoneSignupReuseLocked(latestState)) {
+  if (enforcePhoneSmsReuseLockState()) {
     inputHeroSmsReuseEnabled.checked = false;
     updatePhoneVerificationSettingsUI();
+    markSettingsDirty(true);
+    saveSettings({ silent: true }).catch(() => { });
     return;
   }
   markSettingsDirty(true);
@@ -17355,6 +18185,14 @@ inputHeroSmsReuseEnabled?.addEventListener('change', () => {
 
 inputFreePhoneReuseEnabled?.addEventListener('change', () => {
   if (isPhoneSignupReuseLocked(latestState)) {
+    inputFreePhoneReuseEnabled.checked = false;
+    if (inputFreePhoneReuseAutoEnabled) {
+      inputFreePhoneReuseAutoEnabled.checked = false;
+    }
+    updatePhoneVerificationSettingsUI();
+    return;
+  }
+  if (!supportsFreePhoneReuseProvider(getSelectedPhoneSmsProvider())) {
     inputFreePhoneReuseEnabled.checked = false;
     if (inputFreePhoneReuseAutoEnabled) {
       inputFreePhoneReuseAutoEnabled.checked = false;
@@ -17376,6 +18214,11 @@ inputFreePhoneReuseAutoEnabled?.addEventListener('change', () => {
     updatePhoneVerificationSettingsUI();
     return;
   }
+  if (!supportsFreePhoneReuseProvider(getSelectedPhoneSmsProvider())) {
+    inputFreePhoneReuseAutoEnabled.checked = false;
+    updatePhoneVerificationSettingsUI();
+    return;
+  }
   updatePhoneVerificationSettingsUI();
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
@@ -17387,6 +18230,12 @@ btnSaveFreeReusablePhone?.addEventListener('click', async () => {
     updatePhoneVerificationSettingsUI();
     return;
   }
+  const selectedProvider = getSelectedPhoneSmsProvider();
+  if (!supportsFreePhoneReuseProvider(selectedProvider)) {
+    showToast?.(`当前接码服务商 ${getPhoneSmsProviderLabel(selectedProvider)} 不支持白嫖复用。`, 'warn', 2600);
+    updatePhoneVerificationSettingsUI();
+    return;
+  }
   const phoneNumber = String(inputFreeReusablePhone?.value || '').trim();
   if (!phoneNumber) {
     showToast?.('请先填写白嫖复用手机号。', 'warn', 2200);
@@ -17395,7 +18244,7 @@ btnSaveFreeReusablePhone?.addEventListener('click', async () => {
   }
   try {
     const response = await chrome.runtime.sendMessage({
-      type: 'SET_FREE_REUSABLE_PHONE', payload: { phoneNumber },
+      type: 'SET_FREE_REUSABLE_PHONE', payload: { phoneNumber, provider: selectedProvider },
     });
     if (response?.error) {
       throw new Error(response.error);
@@ -17531,6 +18380,26 @@ inputPhoneReplacementLimit?.addEventListener('blur', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
+inputWhatsappPageRestartEnabled?.addEventListener('change', () => {
+  updatePhoneVerificationSettingsUI();
+  markSettingsDirty(true);
+  saveSettings({ silent: true }).catch(() => { });
+});
+
+inputWhatsappPageRestartMaxAttempts?.addEventListener('input', () => {
+  markSettingsDirty(true);
+  scheduleSettingsAutoSave();
+});
+inputWhatsappPageRestartMaxAttempts?.addEventListener('blur', () => {
+  inputWhatsappPageRestartMaxAttempts.value = String(
+    normalizeWhatsAppPhoneVerificationRestartMaxAttempts(
+      inputWhatsappPageRestartMaxAttempts.value,
+      DEFAULT_WHATSAPP_PHONE_VERIFICATION_RESTART_MAX_ATTEMPTS
+    )
+  );
+  saveSettings({ silent: true }).catch(() => { });
+});
+
 inputPhoneCodeWaitSeconds?.addEventListener('input', () => {
   markSettingsDirty(true);
   scheduleSettingsAutoSave();
@@ -17581,6 +18450,25 @@ inputPhoneCodePollMaxRounds?.addEventListener('blur', () => {
       DEFAULT_PHONE_CODE_POLL_MAX_ROUNDS
     )
   );
+  saveSettings({ silent: true }).catch(() => { });
+});
+
+inputPhoneActivationRetryRounds?.addEventListener('input', () => {
+  markSettingsDirty(true);
+  scheduleSettingsAutoSave();
+});
+inputPhoneActivationRetryRounds?.addEventListener('blur', () => {
+  inputPhoneActivationRetryRounds.value = String(
+    normalizePhoneActivationRetryRoundsValue(
+      inputPhoneActivationRetryRounds.value,
+      DEFAULT_PHONE_ACTIVATION_RETRY_ROUNDS
+    )
+  );
+  saveSettings({ silent: true }).catch(() => { });
+});
+
+inputPhoneAutoReleaseOnStopEnabled?.addEventListener('change', () => {
+  markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
 });
 selectHeroSmsCountry?.addEventListener('change', () => {
@@ -18110,6 +18998,54 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.payload.cloudMailDomain !== undefined && inputCloudMailDomain) {
         inputCloudMailDomain.value = message.payload.cloudMailDomain || '';
       }
+      if (message.payload.freemailBaseUrl !== undefined && inputFreemailBaseUrl) {
+        inputFreemailBaseUrl.value = message.payload.freemailBaseUrl || '';
+      }
+      if (message.payload.freemailAdminUsername !== undefined && inputFreemailAdminUsername) {
+        inputFreemailAdminUsername.value = message.payload.freemailAdminUsername || '';
+      }
+      if (message.payload.freemailAdminPassword !== undefined && inputFreemailAdminPassword) {
+        inputFreemailAdminPassword.value = message.payload.freemailAdminPassword || '';
+      }
+      if (message.payload.freemailDomain !== undefined && inputFreemailDomain) {
+        inputFreemailDomain.value = message.payload.freemailDomain || '';
+      }
+      if (
+        message.payload.freemailBaseUrl !== undefined
+        || message.payload.freemailAdminUsername !== undefined
+        || message.payload.freemailAdminPassword !== undefined
+        || message.payload.freemailDomain !== undefined
+      ) {
+        updateMailProviderUI();
+      }
+      if (message.payload.outlookEmailPlusBaseUrl !== undefined && inputOutlookEmailPlusBaseUrl) {
+        inputOutlookEmailPlusBaseUrl.value = message.payload.outlookEmailPlusBaseUrl || '';
+      }
+      if (message.payload.outlookEmailPlusApiKey !== undefined && inputOutlookEmailPlusApiKey) {
+        inputOutlookEmailPlusApiKey.value = message.payload.outlookEmailPlusApiKey || '';
+      }
+      if (message.payload.outlookEmailPlusProvider !== undefined && inputOutlookEmailPlusProvider) {
+        inputOutlookEmailPlusProvider.value = normalizeOutlookEmailPlusProviderValue(message.payload.outlookEmailPlusProvider);
+      }
+      if (message.payload.outlookEmailPlusProjectKey !== undefined && inputOutlookEmailPlusProjectKey) {
+        inputOutlookEmailPlusProjectKey.value = normalizeOutlookEmailPlusProjectKeyValue(message.payload.outlookEmailPlusProjectKey);
+      }
+      if (message.payload.outlookEmailPlusCallerIdPrefix !== undefined && inputOutlookEmailPlusCallerIdPrefix) {
+        inputOutlookEmailPlusCallerIdPrefix.value = normalizeOutlookEmailPlusCallerIdPrefixValue(message.payload.outlookEmailPlusCallerIdPrefix);
+      }
+      if (message.payload.outlookEmailPlusAliasMaxPerMailbox !== undefined && inputOutlookEmailPlusAliasMaxPerMailbox) {
+        inputOutlookEmailPlusAliasMaxPerMailbox.value = String(normalizeOutlookEmailPlusAliasMaxPerMailbox(message.payload.outlookEmailPlusAliasMaxPerMailbox));
+      }
+      if (
+        message.payload.outlookEmailPlusBaseUrl !== undefined
+        || message.payload.outlookEmailPlusApiKey !== undefined
+        || message.payload.outlookEmailPlusProvider !== undefined
+        || message.payload.outlookEmailPlusProjectKey !== undefined
+        || message.payload.outlookEmailPlusCallerIdPrefix !== undefined
+        || message.payload.outlookEmailPlusAliasMaxPerMailbox !== undefined
+      ) {
+        updateMailProviderUI();
+      }
       if (message.payload.plusModeEnabled !== undefined && inputPlusModeEnabled) {
         inputPlusModeEnabled.checked = Boolean(message.payload.plusModeEnabled);
       }
@@ -18239,6 +19175,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.payload.icloudForwardMailProvider !== undefined && selectIcloudForwardMailProvider) {
         selectIcloudForwardMailProvider.value = normalizeIcloudForwardMailProvider(message.payload.icloudForwardMailProvider);
         updateMailProviderUI();
+      }
+      if (message.payload.icloudApiBaseUrl !== undefined && inputIcloudApiBaseUrl) {
+        inputIcloudApiBaseUrl.value = normalizeIcloudApiBaseUrlValue(message.payload.icloudApiBaseUrl);
+      }
+      if (message.payload.icloudApiAdminKey !== undefined && inputIcloudApiAdminKey) {
+        inputIcloudApiAdminKey.value = message.payload.icloudApiAdminKey || '';
       }
       if (message.payload.icloudFetchMode !== undefined && selectIcloudFetchMode) {
         selectIcloudFetchMode.value = normalizeIcloudFetchMode(message.payload.icloudFetchMode);
@@ -18442,10 +19384,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           || message.payload.heroSmsReuseEnabled !== undefined)
         && inputHeroSmsReuseEnabled
       ) {
-        inputHeroSmsReuseEnabled.checked = normalizeHeroSmsReuseEnabledValue(
-          message.payload.phoneSmsReuseEnabled,
-          message.payload.heroSmsReuseEnabled
-        );
+        inputHeroSmsReuseEnabled.checked = getSelectedPhoneSmsProvider() === PHONE_SMS_PROVIDER_SMSBOWER
+          ? false
+          : normalizeHeroSmsReuseEnabledValue(
+            message.payload.phoneSmsReuseEnabled,
+            message.payload.heroSmsReuseEnabled
+          );
+        enforcePhoneSmsReuseLockState();
         updatePhoneVerificationSettingsUI();
       }
       if (message.payload.freePhoneReuseEnabled !== undefined && inputFreePhoneReuseEnabled) {
@@ -18542,6 +19487,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           )
         );
       }
+      if (message.payload.whatsappPhoneVerificationRestartEnabled !== undefined && typeof inputWhatsappPageRestartEnabled !== 'undefined' && inputWhatsappPageRestartEnabled) {
+        inputWhatsappPageRestartEnabled.checked = Boolean(message.payload.whatsappPhoneVerificationRestartEnabled);
+        updatePhoneVerificationSettingsUI();
+      }
+      if (message.payload.whatsappPhoneVerificationRestartMaxAttempts !== undefined && typeof inputWhatsappPageRestartMaxAttempts !== 'undefined' && inputWhatsappPageRestartMaxAttempts) {
+        inputWhatsappPageRestartMaxAttempts.value = String(
+          normalizeWhatsAppPhoneVerificationRestartMaxAttempts(
+            message.payload.whatsappPhoneVerificationRestartMaxAttempts,
+            DEFAULT_WHATSAPP_PHONE_VERIFICATION_RESTART_MAX_ATTEMPTS
+          )
+        );
+      }
       if (message.payload.phoneCodeWaitSeconds !== undefined && inputPhoneCodeWaitSeconds) {
         inputPhoneCodeWaitSeconds.value = String(
           normalizePhoneCodeWaitSecondsValue(message.payload.phoneCodeWaitSeconds, DEFAULT_PHONE_CODE_WAIT_SECONDS)
@@ -18564,6 +19521,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         inputPhoneCodePollMaxRounds.value = String(
           normalizePhoneCodePollMaxRoundsValue(message.payload.phoneCodePollMaxRounds, DEFAULT_PHONE_CODE_POLL_MAX_ROUNDS)
         );
+      }
+      if (message.payload.heroSmsActivationRetryRounds !== undefined && inputPhoneActivationRetryRounds) {
+        inputPhoneActivationRetryRounds.value = String(
+          normalizePhoneActivationRetryRoundsValue(
+            message.payload.heroSmsActivationRetryRounds,
+            DEFAULT_PHONE_ACTIVATION_RETRY_ROUNDS
+          )
+        );
+      }
+      if (message.payload.phoneAutoReleaseOnStopEnabled !== undefined && inputPhoneAutoReleaseOnStopEnabled) {
+        inputPhoneAutoReleaseOnStopEnabled.checked = Boolean(message.payload.phoneAutoReleaseOnStopEnabled);
       }
       if (
         message.payload.phoneSmsProvider !== undefined
@@ -18938,7 +19906,7 @@ if (typeof initIpProxySectionExpandedState === 'function') {
 if (typeof initPhoneVerificationSectionExpandedState === 'function') {
   initPhoneVerificationSectionExpandedState();
 }
-applyPhoneSmsProviderOrderSelection([], { ensureDefault: false, syncProvider: false });
+updatePhoneSmsProviderOrderSummary([]);
 updateSaveButtonState();
 updateConfigMenuControls();
 setLocalCpaStep9Mode(DEFAULT_LOCAL_CPA_STEP9_MODE);
@@ -18950,7 +19918,14 @@ updateButtonStates();
 initializeReleaseInfo().catch((err) => {
   console.error('Failed to initialize release info:', err);
 });
-void restoreState().then(() => {
+const initialPhoneCountryLoadPromise = Promise.allSettled([
+  loadHeroSmsCountries(),
+  loadFiveSimCountries(),
+  loadNexSmsCountries({ silent: true }),
+]);
+void restoreState().then(async () => {
+  await initialPhoneCountryLoadPromise;
+  rehydratePhoneVerificationSelectionsFromState(latestState);
   syncPasswordToggleLabel();
   syncVpsUrlToggleLabel();
   syncVpsPasswordToggleLabel();
@@ -18972,11 +19947,7 @@ void restoreState().then(() => {
 }).catch((err) => {
   console.error('Failed to initialize sidepanel state:', err);
 });
-Promise.allSettled([
-  loadHeroSmsCountries(),
-  loadFiveSimCountries(),
-  loadNexSmsCountries({ silent: true }),
-]).then((results) => {
+initialPhoneCountryLoadPromise.then((results) => {
   const heroResult = results[0];
   const fiveSimResult = results[1];
   const nexSmsResult = results[2];

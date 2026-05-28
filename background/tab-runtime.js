@@ -250,6 +250,16 @@
 
     function waitForRecoverableNavigationAttempt(tabId, timeoutMs = 30000) {
       return new Promise((resolve, reject) => {
+        if (!chrome.tabs?.onUpdated?.addListener || !chrome.tabs?.onUpdated?.removeListener) {
+          if (typeof chrome.tabs?.get !== 'function') {
+            resolve({ errorCode: '', tab: null });
+            return;
+          }
+          chrome.tabs.get(tabId)
+            .then((tab) => resolve({ errorCode: '', tab }))
+            .catch(() => resolve({ errorCode: '', tab: null }));
+          return;
+        }
         let settled = false;
         let stopTimer = null;
         let lastErrorCode = '';
@@ -322,7 +332,11 @@
 
       for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
         const result = await waitForRecoverableNavigationAttempt(tabId, timeoutMs);
-        const tab = result?.tab || await chrome.tabs.get(tabId).catch(() => null);
+        const tab = result?.tab || (
+          typeof chrome.tabs?.get === 'function'
+            ? await chrome.tabs.get(tabId).catch(() => null)
+            : null
+        );
         const errorCode = result?.errorCode || '';
         const landedOnChromeError = isChromeErrorPageUrl(tab?.url);
         if (!errorCode && !landedOnChromeError) {
@@ -839,28 +853,35 @@
       }
     }
 
+    async function initializeCreatedTab(tabId, options = {}) {
+      if (!options.inject) {
+        return;
+      }
+
+      await waitForTabUpdateComplete(tabId);
+      if (options.injectSource) {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          func: (injectedSource) => {
+            window.__MULTIPAGE_SOURCE = injectedSource;
+          },
+          args: [options.injectSource],
+        });
+      }
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: options.inject,
+      });
+    }
+
     async function reuseOrCreateTab(source, url, options = {}) {
       if (options.forceNew) {
-        await closeConflictingTabsForSource(source, url);
         const tab = await createAutomationTab({ url, active: true }, options);
         await waitForRecoverableNavigationComplete(source, tab.id);
-
-        if (options.inject) {
-          if (options.injectSource) {
-            await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: (injectedSource) => {
-                window.__MULTIPAGE_SOURCE = injectedSource;
-              },
-              args: [options.injectSource],
-            });
-          }
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: options.inject,
-          });
-        }
-
+        await initializeCreatedTab(tab.id, options);
+        // Keep the locked automation window alive by opening the replacement
+        // tab before removing the previous ChatGPT/OpenAI tab family.
+        await closeConflictingTabsForSource(source, url, { excludeTabIds: [tab.id] });
         await rememberSourceLastUrl(source, url);
         return tab.id;
       }
@@ -949,26 +970,12 @@
         return tabId;
       }
 
-      await closeConflictingTabsForSource(source, url);
       const tab = await createAutomationTab({ url, active: true }, options);
       await waitForRecoverableNavigationComplete(source, tab.id);
-
-      if (options.inject) {
-        if (options.injectSource) {
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: (injectedSource) => {
-              window.__MULTIPAGE_SOURCE = injectedSource;
-            },
-            args: [options.injectSource],
-          });
-        }
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: options.inject,
-        });
-      }
-
+      await initializeCreatedTab(tab.id, options);
+      // When the locked automation window only has one matching tab left,
+      // creating first avoids closing the window before replacement exists.
+      await closeConflictingTabsForSource(source, url, { excludeTabIds: [tab.id] });
       await rememberSourceLastUrl(source, url);
       return tab.id;
     }

@@ -121,7 +121,7 @@ test('ChatGPT API provider skips disabled pool entries', async () => {
         disabledReason: '号码被目标站拒绝',
       },
       [enabledKey]: {
-        useCount: 5,
+        useCount: 2,
         usedAt: 20,
         enabled: true,
       },
@@ -287,4 +287,36 @@ test('ChatGPT API provider ban force-disables rejected entries', async () => {
   assert.equal(usage.enabled, false);
   assert.equal(usage.disabledReason, '号码被目标站拒绝');
   assert.equal(getState().chatGptApiCurrentSmsEntry, null);
+});
+
+test('ChatGPT API provider skips entries that reached the 3-use success limit', async () => {
+  const initialState = createState({
+    chatGptApiSmsPoolText: [
+      '628111111111----https://example.test/api/sms/1',
+      '628222222222----https://example.test/api/sms/2',
+    ].join('\n'),
+    chatGptApiSmsPoolUsage: {
+      '628111111111----https://example.test/api/sms/1': {
+        useCount: 3,
+        usedAt: 10,
+        enabled: true,
+      },
+      '628222222222----https://example.test/api/sms/2': {
+        useCount: 2,
+        usedAt: 20,
+        enabled: true,
+      },
+    },
+  });
+  const { provider, getState } = createProviderWithState(initialState);
+
+  const activation = await provider.requestActivation(getState());
+
+  assert.equal(activation.phoneNumber, '628222222222');
+  assert.equal(getState().chatGptApiSmsPoolUsage[activation.activationId].useCount, 3);
+
+  await assert.rejects(
+    () => provider.requestActivation(getState()),
+    /达到成功使用上限 3 次/
+  );
 });

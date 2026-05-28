@@ -4369,10 +4369,16 @@ function inspectLoginAuthState() {
   const verificationVisible = isVerificationPageStillVisible();
   const addPhonePage = isAddPhonePageReady();
   const addEmailPage = isAddEmailPageReady();
+  const addPhoneDelivery = addPhonePage
+    ? (phoneAuthHelpers.getAddPhoneDeliveryInfo?.() || { channel: '', text: '', candidates: [] })
+    : { channel: '', text: '', candidates: [] };
   const phoneVerificationPage = isPhoneVerificationPageReady();
   const consentReady = isStep8Ready();
   const oauthConsentPage = isOAuthConsentPage();
   const accountDeactivatedErrorText = getAccountDeactivatedErrorText();
+  const phoneVerificationDelivery = phoneVerificationPage
+    ? (phoneAuthHelpers.getPhoneVerificationDeliveryInfo?.() || { channel: '', text: '', candidates: [] })
+    : { channel: '', text: '', candidates: [] };
   const baseState = {
     state: 'unknown',
     url: location.href,
@@ -4398,8 +4404,14 @@ function inspectLoginAuthState() {
     moreOptionsTrigger,
     verificationVisible,
     addPhonePage,
+    addPhoneDeliveryChannel: addPhoneDelivery.channel || '',
+    addPhoneDeliveryText: addPhoneDelivery.text || '',
+    addPhoneWhatsApp: addPhoneDelivery.channel === 'whatsapp',
     addEmailPage,
     phoneVerificationPage,
+    phoneVerificationDeliveryChannel: phoneVerificationDelivery.channel || '',
+    phoneVerificationDeliveryText: phoneVerificationDelivery.text || '',
+    phoneVerificationWhatsApp: phoneVerificationDelivery.channel === 'whatsapp',
     oauthConsentPage,
     consentReady,
   };
@@ -4423,6 +4435,9 @@ function inspectLoginAuthState() {
       ...baseState,
       state: 'phone_verification_page',
       displayedPhone: getPhoneVerificationDisplayedPhone(),
+      phoneVerificationDeliveryCandidates: Array.isArray(phoneVerificationDelivery.candidates)
+        ? phoneVerificationDelivery.candidates
+        : [],
     };
   }
 
@@ -4437,6 +4452,9 @@ function inspectLoginAuthState() {
     return {
       ...baseState,
       state: 'add_phone_page',
+      addPhoneDeliveryCandidates: Array.isArray(addPhoneDelivery.candidates)
+        ? addPhoneDelivery.candidates
+        : [],
     };
   }
 
@@ -4525,8 +4543,14 @@ function serializeLoginAuthState(snapshot) {
     hasMoreOptionsTrigger: Boolean(snapshot?.moreOptionsTrigger),
     verificationVisible: Boolean(snapshot?.verificationVisible),
     addPhonePage: Boolean(snapshot?.addPhonePage),
+    addPhoneDeliveryChannel: String(snapshot?.addPhoneDeliveryChannel || '').trim(),
+    addPhoneDeliveryText: String(snapshot?.addPhoneDeliveryText || '').trim(),
+    addPhoneWhatsApp: Boolean(snapshot?.addPhoneWhatsApp),
     addEmailPage: Boolean(snapshot?.addEmailPage),
     phoneVerificationPage: Boolean(snapshot?.phoneVerificationPage),
+    phoneVerificationDeliveryChannel: String(snapshot?.phoneVerificationDeliveryChannel || '').trim(),
+    phoneVerificationDeliveryText: String(snapshot?.phoneVerificationDeliveryText || '').trim(),
+    phoneVerificationWhatsApp: Boolean(snapshot?.phoneVerificationWhatsApp),
     oauthConsentPage: Boolean(snapshot?.oauthConsentPage),
     consentReady: Boolean(snapshot?.consentReady),
   };
@@ -6796,7 +6820,21 @@ async function step8_findAndClick(payload = {}) {
   const visibleStep = Math.floor(Number(payload?.visibleStep) || 0) || 9;
   log('正在查找 OAuth 同意页的“继续”按钮...', 'info', { step: visibleStep, stepKey: 'confirm-oauth' });
 
-  const continueBtn = await prepareStep8ContinueButton();
+  let continueBtn = null;
+  try {
+    continueBtn = await prepareStep8ContinueButton();
+  } catch (error) {
+    const pageState = getStep8State();
+    if (pageState?.verificationPage || pageState?.addEmailPage || pageState?.retryPage) {
+      return {
+        recoverableAuthFallback: true,
+        pageState,
+        error: error?.message || String(error || 'OAuth 同意页已回流'),
+        url: location.href,
+      };
+    }
+    throw error;
+  }
 
   const rect = getSerializableRect(continueBtn);
   log('已找到“继续”按钮并准备好调试器点击坐标。', 'info', { step: visibleStep, stepKey: 'confirm-oauth' });
@@ -6808,16 +6846,32 @@ async function step8_findAndClick(payload = {}) {
 }
 
 function getStep8State() {
+  const authSnapshot = inspectLoginAuthState();
   const continueBtn = getPrimaryContinueButton();
   const retryState = getCurrentAuthRetryPageState('auth');
+  const addPhoneDelivery = isAddPhonePageReady()
+    ? (phoneAuthHelpers.getAddPhoneDeliveryInfo?.() || { channel: '', text: '' })
+    : { channel: '', text: '' };
+  const phoneVerificationDelivery = isPhoneVerificationPageReady()
+    ? (phoneAuthHelpers.getPhoneVerificationDeliveryInfo?.() || { channel: '', text: '' })
+    : { channel: '', text: '' };
   const state = {
+    state: String(authSnapshot?.state || 'unknown').trim() || 'unknown',
     url: location.href,
     consentPage: isOAuthConsentPage(),
     consentReady: isStep8Ready(),
     verificationPage: isVerificationPageStillVisible(),
+    displayedEmail: String(authSnapshot?.displayedEmail || '').trim(),
+    verificationTarget: authSnapshot?.verificationTarget || null,
     addPhonePage: isAddPhonePageReady(),
+    addPhoneDeliveryChannel: addPhoneDelivery.channel || '',
+    addPhoneDeliveryText: addPhoneDelivery.text || '',
+    addPhoneWhatsApp: addPhoneDelivery.channel === 'whatsapp',
     addEmailPage: isAddEmailPageReady(),
     phoneVerificationPage: isPhoneVerificationPageReady(),
+    phoneVerificationDeliveryChannel: phoneVerificationDelivery.channel || '',
+    phoneVerificationDeliveryText: phoneVerificationDelivery.text || '',
+    phoneVerificationWhatsApp: phoneVerificationDelivery.channel === 'whatsapp',
     retryPage: Boolean(retryState),
     retryEnabled: Boolean(retryState?.retryEnabled),
     retryTitleMatched: Boolean(retryState?.titleMatched),
@@ -6860,10 +6914,24 @@ function getStep8State() {
 async function step8_triggerContinue(payload = {}) {
   const visibleStep = Math.floor(Number(payload?.visibleStep) || 0) || 9;
   const strategy = payload?.strategy || 'requestSubmit';
-  const continueBtn = await prepareStep8ContinueButton({
-    findTimeoutMs: payload?.findTimeoutMs,
-    enabledTimeoutMs: payload?.enabledTimeoutMs,
-  });
+  let continueBtn = null;
+  try {
+    continueBtn = await prepareStep8ContinueButton({
+      findTimeoutMs: payload?.findTimeoutMs,
+      enabledTimeoutMs: payload?.enabledTimeoutMs,
+    });
+  } catch (error) {
+    const pageState = getStep8State();
+    if (pageState?.verificationPage || pageState?.addEmailPage || pageState?.retryPage) {
+      return {
+        recoverableAuthFallback: true,
+        pageState,
+        error: error?.message || String(error || 'OAuth 同意页已回流'),
+        url: location.href,
+      };
+    }
+    throw error;
+  }
   const form = continueBtn.form || continueBtn.closest('form');
 
   switch (strategy) {

@@ -40,6 +40,7 @@
       testCheckoutConversionProxy = null,
       fetchGeneratedEmail,
       refreshGpcCardBalance,
+      refreshOAuthTimeoutWindowAfterCheckoutSuccess = null,
       finalizePhoneActivationAfterSuccessfulFlow,
       finalizeStep3Completion,
       finalizeIcloudAliasAfterSuccessfulFlow,
@@ -232,6 +233,22 @@
       preserveKeyFromState(updates, currentState, 'phonePreferredActivation');
     }
 
+    function forceDisablePhoneReuseForSmsBower(updates, currentState = {}) {
+      if (!updates || typeof updates !== 'object') {
+        return;
+      }
+      const nextProvider = normalizePhoneSmsProvider(
+        Object.prototype.hasOwnProperty.call(updates, 'phoneSmsProvider')
+          ? updates.phoneSmsProvider
+          : currentState?.phoneSmsProvider
+      );
+      if (nextProvider !== 'smsbower') {
+        return;
+      }
+      updates.phoneSmsReuseEnabled = false;
+      updates.heroSmsReuseEnabled = false;
+    }
+
     async function appendManualAccountRunRecordIfNeeded(status, stateOverride = null, reason = '') {
       if (typeof appendAccountRunRecord !== 'function') {
         return null;
@@ -341,11 +358,7 @@
     }
 
     function normalizePlusPaymentMethod(value = '') {
-      const normalized = String(value || '').trim().toLowerCase();
-      if (normalized === 'gpc-helper') {
-        return 'gpc-helper';
-      }
-      return normalized === 'gopay' ? 'gopay' : 'paypal';
+      return 'paypal';
     }
 
     function parseUrlSafely(rawUrl) {
@@ -917,11 +930,7 @@
     }
 
     function normalizePlusPaymentMethodForDisplay(value = '') {
-      const normalized = String(value || '').trim().toLowerCase();
-      if (normalized === 'gpc-helper') {
-        return 'gpc-helper';
-      }
-      return normalized === 'gopay' ? 'gopay' : 'paypal';
+      return 'paypal';
     }
 
     function getPlusPaymentMethodLabel(value = '') {
@@ -1096,6 +1105,11 @@
         }
         if (payload.email !== undefined) {
           updates.email = payload.email || null;
+        }
+        if (payload.boundEmail !== undefined) {
+          updates.boundEmail = payload.boundEmail || '';
+        } else if (payload.bindEmailSubmitted === false) {
+          updates.boundEmail = '';
         }
         if (payload.step8VerificationTargetEmail !== undefined) {
           updates.step8VerificationTargetEmail = payload.step8VerificationTargetEmail || '';
@@ -1486,6 +1500,11 @@
                 });
               }
               await addLog(`步骤 6：已检测到 PLUS 生效（planType=${inspection.planType || 'unknown'}），准备继续下一步。`, 'ok');
+              if (typeof refreshOAuthTimeoutWindowAfterCheckoutSuccess === 'function') {
+                await refreshOAuthTimeoutWindowAfterCheckoutSuccess({
+                  source: 'paypal-hosted-generic-error-check',
+                });
+              }
               await completeNodeFromBackground(completedNodeId, {
                 plusDetectedPlanType: inspection.planType || '',
                 plusCheckoutTabId: inspection.tabId,
@@ -1504,12 +1523,19 @@
               return { ok: true, plusActive: true, planType: inspection.planType || '' };
             }
 
-            await setState(clearManualConfirmationState);
-            if (typeof broadcastDataUpdate === 'function') {
-              broadcastDataUpdate(clearManualConfirmationState);
-            }
-
             if (action === 'retry' && confirmed) {
+              await setState({
+                ...clearManualConfirmationState,
+                paypalGenericErrorRecoveryCount: 0,
+                paypalApprovalBranchRecoveryCount: 0,
+              });
+              if (typeof broadcastDataUpdate === 'function') {
+                broadcastDataUpdate({
+                  ...clearManualConfirmationState,
+                  paypalGenericErrorRecoveryCount: 0,
+                  paypalApprovalBranchRecoveryCount: 0,
+                });
+              }
               clearStopRequest?.();
               const retryNodeId = 'plus-checkout-create';
               const retryStep = findStepByNodeId(retryNodeId, currentState) || 6;
@@ -1530,6 +1556,11 @@
                 }
               }
               return { ok: true };
+            }
+
+            await setState(clearManualConfirmationState);
+            if (typeof broadcastDataUpdate === 'function') {
+              broadcastDataUpdate(clearManualConfirmationState);
             }
 
             const cancelMessage = '已取消 PayPal Checkout 异常处理';
@@ -1722,6 +1753,12 @@
           }
           if (message.source === 'sidepanel') {
             await invalidateDownstreamAfterStepRestart(resolvedStep, { logLabel: `节点 ${nodeId} 重新执行` });
+          }
+          if (nodeId === 'plus-checkout-create') {
+            await setState({
+              paypalGenericErrorRecoveryCount: 0,
+              paypalApprovalBranchRecoveryCount: 0,
+            });
           }
           if (message.payload.email) {
             await setEmailState(message.payload.email);
@@ -1976,6 +2013,7 @@
           if (normalizeSignupMethod(nextPersistedSignupMethod) === 'phone') {
             preservePhoneReuseSettingsForPhoneSignup(updates, currentState);
           }
+          forceDisablePhoneReuseForSmsBower(updates, currentState);
           const modeChanged = Object.prototype.hasOwnProperty.call(updates, 'plusModeEnabled')
             && Boolean(currentState?.plusModeEnabled) !== Boolean(updates.plusModeEnabled);
           const plusPaymentChanged = Object.prototype.hasOwnProperty.call(updates, 'plusPaymentMethod')
